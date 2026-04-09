@@ -3,7 +3,7 @@ package editor
 // ModalScreen represents a modal screen interface that can be displayed in the editor
 type ModalScreen interface {
 	// GetContent returns the content rows to display
-	GetContent() []editorRow
+	GetContent() []DisplayLine
 
 	// GetTitle returns the title for the modal screen
 	GetTitle() string
@@ -17,6 +17,19 @@ type ModalScreen interface {
 
 	// Initialize sets up the initial cursor position and any other screen-specific setup
 	Initialize(e *Editor)
+}
+
+// SplitViewModal represents a modal that can render as a split view (left content + right preview)
+type SplitViewModal interface {
+	ModalScreen
+
+	// ShouldShowSplitView determines if the split view should be displayed for the given terminal width
+	ShouldShowSplitView(screenCols int) bool
+
+	// GetSplitViewContent returns the left pane content and right pane preview lines
+	// rightWidth is the available width for the right pane
+	// maxPreviewLines is the maximum number of lines to return
+	GetSplitViewContent(e *Editor, rightWidth int, maxPreviewLines int) (leftContent []DisplayLine, rightPreview []string)
 }
 
 // handles the common logic for modal screens
@@ -39,6 +52,12 @@ func NewModalManager(editor *Editor, screen ModalScreen) *ModalManager {
 func (m *ModalManager) Show(mode int) {
 	content := m.screen.GetContent()
 	m.setupModalDisplay(content, mode)
+
+	// Store the active modal so split-view modals can be rendered properly
+	m.editor.activeModal = m.screen
+	defer func() {
+		m.editor.activeModal = nil
+	}()
 
 	// Let the screen initialize itself (e.g., set cursor position)
 	m.screen.Initialize(m.editor)
@@ -68,7 +87,7 @@ func (m *ModalManager) Show(mode int) {
 }
 
 // configures the editor for modal display
-func (m *ModalManager) setupModalDisplay(content []editorRow, mode int) {
+func (m *ModalManager) setupModalDisplay(content []DisplayLine, mode int) {
 	m.editor.mode = mode
 	m.editor.row = content
 	m.editor.totalRows = len(content)

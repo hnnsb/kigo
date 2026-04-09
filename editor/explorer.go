@@ -1,15 +1,25 @@
 package editor
 
 import (
+	"bufio"
 	"fmt"
+	"io"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 )
 
+const (
+	minExplorerPreviewWidth = 90
+	previewPaneMinWidth     = 24
+	previewReadByteLimit    = 64 * 1024
+	binarySampleSize        = 512
+)
+
 // EditorState represents the saved state of the editor
 type EditorState struct {
-	rows      []editorRow
+	rows      []DisplayLine
 	totalRows int
 	cx, cy    int
 	colOffset int
@@ -44,7 +54,7 @@ type ExplorerScreen struct {
 	currentDir   string
 	files        []os.DirEntry
 	hasParentDir bool
-	content      []editorRow
+	content      []DisplayLine
 	editor       *Editor
 }
 
@@ -91,23 +101,29 @@ func (ex *ExplorerScreen) refreshContent() error {
 }
 
 // createExplorerRows creates all the display rows for the file explorer
-func (ex *ExplorerScreen) createExplorerRows(files []os.DirEntry, currentDir string) []editorRow {
-	explorerRows := make([]editorRow, 0, len(files)+2)
+func (ex *ExplorerScreen) createExplorerRows(files []os.DirEntry, currentDir string) []DisplayLine {
+	explorerRows := make([]DisplayLine, 0, len(files)+2)
 
 	// Add header
-	headerText := fmt.Sprintf("=== File Explorer: %s ===", currentDir)
-	headerRow := editorRow{
+	headerText := fmt.Sprintf("File Explorer: %s ", currentDir)
+	headerRow := DisplayLine{
 		idx:   0,
 		chars: []rune(headerText),
 	}
 	headerRow.Update(ex.editor)
+	for i := range headerRow.hl {
+		headerRow.hl[i] = HL_NORMAL
+	}
 	explorerRows = append(explorerRows, headerRow)
+	separatorRow := DisplayLine{idx: 1, chars: []rune(strings.Repeat("-", ex.editor.screenCols))}
+	separatorRow.Update(ex.editor)
+	explorerRows = append(explorerRows, separatorRow)
 
 	// Add parent directory option (unless we're at root)
 	if ex.hasParentDir {
-		parentText := "⏎ .. (parent directory)"
-		parentRow := editorRow{
-			idx:   1,
+		parentText := "⏎ .."
+		parentRow := DisplayLine{
+			idx:   2,
 			chars: []rune(parentText),
 		}
 		parentRow.Update(ex.editor)
@@ -125,7 +141,7 @@ func (ex *ExplorerScreen) createExplorerRows(files []os.DirEntry, currentDir str
 }
 
 // createFileDisplayRow creates a formatted display row for a file or directory
-func (ex *ExplorerScreen) createFileDisplayRow(index int, file os.DirEntry) editorRow {
+func (ex *ExplorerScreen) createFileDisplayRow(index int, file os.DirEntry) DisplayLine {
 	var fileInfo string
 	if file.IsDir() {
 		fileInfo = fmt.Sprintf("🗀 %s/", file.Name())
@@ -138,14 +154,14 @@ func (ex *ExplorerScreen) createFileDisplayRow(index int, file os.DirEntry) edit
 		fileInfo = fmt.Sprintf("🗋 %s%s", file.Name(), size)
 	}
 
-	return editorRow{
-		idx:   index + 2, // +2 to account for header and potential parent dir option
+	return DisplayLine{
+		idx:   index + 3, // +3 to account for header, separator, and potential parent dir option
 		chars: []rune(fileInfo),
 	}
 }
 
 // GetContent returns the explorer content rows
-func (ex *ExplorerScreen) GetContent() []editorRow {
+func (ex *ExplorerScreen) GetContent() []DisplayLine {
 	return ex.content
 }
 
@@ -156,16 +172,297 @@ func (ex *ExplorerScreen) GetTitle() string {
 
 // GetStatusMessage returns the status message for the explorer screen
 func (ex *ExplorerScreen) GetStatusMessage() string {
-	return fmt.Sprintf("File Explorer: %s - %d items (Enter=open/navigate, ESC/q=quit)", ex.currentDir, len(ex.files))
+	return fmt.Sprintf("File Explorer: %s - %d items (↑↓/←→=Navigate, ESC/q=quit)", ex.currentDir, len(ex.files))
+}
+
+// ShouldShowSplitView determines if the split view should be displayed.
+func (ex *ExplorerScreen) ShouldShowSplitView(screenCols int) bool {
+	return screenCols >= minExplorerPreviewWidth
+}
+
+// GetSplitViewContent returns the explorer file list and file preview for split view rendering.
+func (ex *ExplorerScreen) GetSplitViewContent(e *Editor, rightWidth int, maxPreviewLines int) ([]DisplayLine, []string) {
+	// Left pane: explorer content (file list)
+	leftContent := ex.GetContent()
+
+	// Right pane: file preview
+	rightPreview := ex.buildPreviewLines(e, rightWidth, maxPreviewLines)
+
+	return leftContent, rightPreview
+}
+
+// isBinaryFile checks if a file is likely binary by looking for null bytes and control characters.
+func isBinaryFile(filepath string) bool {
+	file, err := os.Open(filepath)
+	if err != nil {
+		return false
+	}
+	defer file.Close()
+
+	buf := make([]byte, binarySampleSize)
+	n, err := file.Read(buf)
+	if err != nil && err != io.EOF {
+		return false
+	}
+
+	// Check for null bytes (strong indicator of binary)
+	for i := range n {
+		if buf[i] == 0 {
+			return true
+		}
+	}
+
+	// Count control characters (excluding common ones like \n, \r, \t)
+	controlCount := 0
+	for i := range n {
+		b := buf[i]
+		// Allow: tab (9), newline (10), carriage return (13), and printable ASCII (32-126)
+		if (b < 32 && b != 9 && b != 10 && b != 13) || b == 127 {
+			controlCount++
+		}
+	}
+
+	// If more than 30% of sampled bytes are control characters, likely binary
+	return controlCount > (n / 3)
+}
+
+// sanitizePreviewText removes control sequences and non-printable characters for safe display.
+func sanitizePreviewText(text string) string {
+	var result strings.Builder
+	for _, r := range text {
+		// Allow printable characters, common whitespace, and Unicode
+		if (r >= 32 && r <= 126) || r == '\t' || r >= 128 {
+			result.WriteRune(r)
+		} else if r == '\n' || r == '\r' {
+			// Skip newlines/returns; they're handled by line breaks
+		} else {
+			// Replace other control characters with •
+			result.WriteRune('•')
+		}
+	}
+	return result.String()
+}
+
+// buildPreviewLines returns text lines to render in the preview pane.
+func (ex *ExplorerScreen) buildPreviewLines(e *Editor, width int, maxLines int) []string {
+	if width < previewPaneMinWidth || maxLines <= 0 {
+		return nil
+	}
+	preview := make([]string, 0, maxLines)
+	selectedPath, selectedEntry, hasSelection := ex.getSelection(e)
+
+	// Build header and separator
+	header := ex.buildPreviewHeader(selectedPath, selectedEntry, hasSelection)
+	preview = appendPreviewEntry(preview, header, width, maxLines)
+	preview = appendPreviewEntry(preview, strings.Repeat("-", width), width, maxLines)
+
+	// Build content based on selection type
+	if !hasSelection {
+		return trimPreviewLines(preview, maxLines, width)
+	}
+
+	if selectedEntry == nil {
+		// Parent directory - show nothing below header
+		return trimPreviewLines(preview, maxLines, width)
+	}
+
+	if selectedEntry.IsDir() {
+		preview = ex.previewDirectory(preview, selectedPath, width, maxLines)
+	} else {
+		preview = ex.previewFile(preview, selectedPath, width, maxLines)
+	}
+	return trimPreviewLines(preview, maxLines, width)
+}
+
+// buildPreviewHeader creates the header line for the preview pane.
+func (ex *ExplorerScreen) buildPreviewHeader(selectedPath string, selectedEntry os.DirEntry, hasSelection bool) string {
+	if !hasSelection {
+		return "No selection"
+	}
+
+	if selectedEntry == nil {
+		// Parent directory case
+		return fmt.Sprintf("Preview: %s/", filepath.Base(selectedPath))
+	}
+
+	name := selectedEntry.Name()
+	if selectedEntry.IsDir() {
+		children, err := os.ReadDir(selectedPath)
+		if err != nil {
+			return fmt.Sprintf("Preview: %s/", name)
+		}
+		return fmt.Sprintf("Preview: %s/ (%d items)", name, len(children))
+	}
+
+	return fmt.Sprintf("Preview: %s", name)
+}
+
+// previewDirectory appends directory content lines to the preview.
+func (ex *ExplorerScreen) previewDirectory(preview []string, selectedPath string, width int, maxLines int) []string {
+	children, err := os.ReadDir(selectedPath)
+	if err != nil {
+		return appendPreviewEntry(preview, fmt.Sprintf("Error: %v", err), width, maxLines)
+	}
+
+	for _, child := range children {
+		if len(preview) >= maxLines {
+			break
+		}
+		prefix := "🗋 "
+		if child.IsDir() {
+			prefix = "🗀 "
+		}
+		preview = appendPreviewEntry(preview, prefix+child.Name(), width, maxLines)
+	}
+	return preview
+}
+
+// previewFile appends file content lines to the preview.
+func (ex *ExplorerScreen) previewFile(preview []string, selectedPath string, width int, maxLines int) []string {
+	if isBinaryFile(selectedPath) {
+		return appendPreviewEntry(preview, "(binary file - preview not available)", width, maxLines)
+	}
+
+	file, err := os.Open(selectedPath)
+	if err != nil {
+		return appendPreviewEntry(preview, fmt.Sprintf("Error opening file: %v", err), width, maxLines)
+	}
+	defer file.Close()
+
+	limitedReader := io.LimitReader(file, previewReadByteLimit)
+	scanner := bufio.NewScanner(limitedReader)
+	buf := make([]byte, 0, 64*1024)
+	scanner.Buffer(buf, 1024*1024)
+
+	lineCount := 0
+	for scanner.Scan() && len(preview) < maxLines {
+		preview = appendPreviewEntry(preview, sanitizePreviewText(scanner.Text()), width, maxLines)
+		lineCount++
+	}
+
+	if err := scanner.Err(); err != nil {
+		preview = appendPreviewEntry(preview, fmt.Sprintf("Read error: %v", err), width, maxLines)
+	}
+
+	if lineCount == 0 && len(preview) < maxLines {
+		preview = appendPreviewEntry(preview, "(empty file)", width, maxLines)
+	}
+
+	if len(preview) >= maxLines {
+		preview[maxLines-1] = fitPreviewLine("...", width)
+	}
+
+	return preview
+}
+
+func appendPreviewEntry(lines []string, text string, width int, maxLines int) []string {
+	if len(lines) >= maxLines {
+		return lines
+	}
+	return append(lines, fitPreviewLine(text, width))
+}
+
+func trimPreviewLines(lines []string, maxLines int, width int) []string {
+	if len(lines) > maxLines {
+		return lines[:maxLines]
+	}
+	// Pad with empty lines to always have exactly maxLines
+	emptyLine := strings.Repeat(" ", width)
+	for len(lines) < maxLines {
+		lines = append(lines, emptyLine)
+	}
+	return lines
+}
+
+func fitPreviewLine(s string, width int) string {
+	if width <= 0 {
+		return ""
+	}
+
+	runes := make([]rune, 0, len(s))
+	visibleWidth := 0
+	truncated := false
+	for _, r := range s {
+		if r == '\t' {
+			tabWidth := TAB_STOP - (visibleWidth % TAB_STOP)
+			if visibleWidth+tabWidth > width {
+				truncated = true
+				break
+			}
+			for range tabWidth {
+				runes = append(runes, ' ')
+			}
+			visibleWidth += tabWidth
+			continue
+		}
+
+		charWidth := runeDisplayWidth(r)
+		if charWidth > 0 && visibleWidth+charWidth > width {
+			truncated = true
+			break
+		}
+		runes = append(runes, r)
+		if charWidth > 0 {
+			visibleWidth += charWidth
+		}
+	}
+
+	if truncated {
+		if width == 1 {
+			if len(runes) > 0 {
+				return string(runes[:1])
+			}
+			return "~"
+		}
+
+		for visibleWidth >= width && len(runes) > 0 {
+			lastRune := runes[len(runes)-1]
+			runes = runes[:len(runes)-1]
+			visibleWidth -= runeDisplayWidth(lastRune)
+		}
+		runes = append(runes, '~')
+		visibleWidth++
+	}
+
+	if visibleWidth < width {
+		runes = append(runes, []rune(strings.Repeat(" ", width-visibleWidth))...)
+	}
+
+	return string(runes)
+}
+
+// getSelection returns the current explorer selection.
+// If selectedEntry is nil and hasSelection is true, the parent directory action is selected.
+func (ex *ExplorerScreen) getSelection(e *Editor) (selectedPath string, selectedEntry os.DirEntry, hasSelection bool) {
+	selectedIndex := e.cy - 2 // account for header and separator rows
+
+	if ex.hasParentDir && selectedIndex == 0 {
+		return filepath.Dir(ex.currentDir), nil, true
+	}
+
+	if ex.hasParentDir {
+		selectedIndex--
+	}
+
+	if selectedIndex < 0 || selectedIndex >= len(ex.files) {
+		return "", nil, false
+	}
+
+	entry := ex.files[selectedIndex]
+	return filepath.Join(ex.currentDir, entry.Name()), entry, true
+}
+
+func (ex *ExplorerScreen) moveToParentDirectory() {
+	ex.currentDir = filepath.Dir(ex.currentDir)
 }
 
 // Initialize sets up the initial cursor position for the explorer
 func (ex *ExplorerScreen) Initialize(e *Editor) {
 	// Start at first file (skip header and optionally parent dir)
 	if ex.hasParentDir {
-		e.cy = 2 // Skip header and parent dir option
+		e.cy = 3 // Skip header, separator, and parent dir option
 	} else {
-		e.cy = 1 // Skip only header
+		e.cy = 2 // Skip header and separator
 	}
 	ex.highlightSelectedFile(e)
 }
@@ -182,20 +479,7 @@ func (ex *ExplorerScreen) HandleKey(key int, e *Editor) (bool, bool) {
 
 	case ARROW_LEFT: // Go to parent directory
 		if ex.hasParentDir {
-			// Navigate to parent directory
-			parentDir := ".."
-			if ex.currentDir != "." {
-				// Get actual parent path
-				if lastSlash := strings.LastIndex(ex.currentDir, "/"); lastSlash != -1 {
-					parentDir = ex.currentDir[:lastSlash]
-					if parentDir == "" {
-						parentDir = "."
-					}
-				} else {
-					parentDir = "."
-				}
-			}
-			ex.currentDir = parentDir
+			ex.moveToParentDirectory()
 			err := ex.refreshContent()
 			if err != nil {
 				e.ShowError("Failed to read directory: %v", err)
@@ -203,9 +487,9 @@ func (ex *ExplorerScreen) HandleKey(key int, e *Editor) (bool, bool) {
 			}
 			// Update display with new cursor position
 			if ex.hasParentDir {
-				e.cy = 2 // Skip header and parent dir option
+				e.cy = 3 // Skip header and parent dir option
 			} else {
-				e.cy = 1 // Skip only header
+				e.cy = 2 // Skip only header
 			}
 			e.rowOffset = 0
 			// Update the editor's row content with new directory content
@@ -228,9 +512,9 @@ func (ex *ExplorerScreen) HandleKey(key int, e *Editor) (bool, bool) {
 
 		// Directory was changed, update display with new cursor position
 		if ex.hasParentDir {
-			e.cy = 2 // Skip header and parent dir option
+			e.cy = 3 // Skip header, separator, and parent dir option
 		} else {
-			e.cy = 1 // Skip only header
+			e.cy = 2 // Skip header and separator
 		}
 		e.rowOffset = 0
 		// Update the editor's row content with new directory content
@@ -246,9 +530,9 @@ func (ex *ExplorerScreen) HandleKey(key int, e *Editor) (bool, bool) {
 
 // handleExplorerNavigation handles arrow key navigation in the explorer
 func (ex *ExplorerScreen) handleExplorerNavigation(key int, e *Editor) {
-	minCy := 1 // Start after header
+	minCy := 2 // Start after header
 	if ex.hasParentDir {
-		minCy = 1 // Can navigate to parent dir option
+		minCy = 2 // Can navigate to parent dir option
 	}
 
 	maxItems := len(ex.files)
@@ -262,7 +546,7 @@ func (ex *ExplorerScreen) handleExplorerNavigation(key int, e *Editor) {
 			e.cy--
 		}
 	case ARROW_DOWN:
-		if e.cy < maxItems {
+		if e.cy < minCy+maxItems {
 			e.cy++
 		}
 	}
@@ -292,24 +576,11 @@ func (ex *ExplorerScreen) highlightSelectedFile(e *Editor) {
 
 // openSelectedFile attempts to open the currently selected file or navigate to directory
 func (ex *ExplorerScreen) openSelectedFile(e *Editor) bool {
-	selectedIndex := e.cy - 1 // -1 to account for header
+	selectedIndex := e.cy - 2 // -2 to account for header and separator
 
 	// Handle parent directory navigation
 	if ex.hasParentDir && selectedIndex == 0 {
-		// Navigate to parent directory
-		parentDir := ".."
-		if ex.currentDir != "." {
-			// Get actual parent path
-			if lastSlash := strings.LastIndex(ex.currentDir, "/"); lastSlash != -1 {
-				parentDir = ex.currentDir[:lastSlash]
-				if parentDir == "" {
-					parentDir = "."
-				}
-			} else {
-				parentDir = "."
-			}
-		}
-		ex.currentDir = parentDir
+		ex.moveToParentDirectory()
 		err := ex.refreshContent()
 		if err != nil {
 			e.ShowError("Failed to read directory: %v", err)
@@ -331,10 +602,7 @@ func (ex *ExplorerScreen) openSelectedFile(e *Editor) bool {
 
 	if selectedFile.IsDir() {
 		// Navigate into directory
-		newDir := selectedFile.Name()
-		if ex.currentDir != "." {
-			newDir = ex.currentDir + "/" + newDir
-		}
+		newDir := filepath.Join(ex.currentDir, selectedFile.Name())
 		ex.currentDir = newDir
 		err := ex.refreshContent()
 		if err != nil {
@@ -350,10 +618,7 @@ func (ex *ExplorerScreen) openSelectedFile(e *Editor) bool {
 	}
 
 	// Open regular file
-	filePath := selectedFile.Name()
-	if ex.currentDir != "." {
-		filePath = ex.currentDir + "/" + filePath
-	}
+	filePath := filepath.Join(ex.currentDir, selectedFile.Name())
 
 	err := e.Open(filePath)
 	if err != nil {

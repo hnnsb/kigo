@@ -2,256 +2,189 @@
 
 ## Project Overview
 
-**KIGO** is a terminal-based text editor written in Go, inspired by the Kilo editor tutorial. It's a learning project designed to understand Go programming while implementing a functional text editor with features like syntax highlighting, file exploration, and modal interfaces.
+KIGO is a terminal-based text editor written in Go, inspired by the Kilo editor tutorial. It is a learning project focused on building a practical editor with Unicode support, syntax highlighting, file exploration, and modal workflows.
 
 ## Technical Stack
 
-- **Language**: Go 1.24.2
-- **Dependencies**:
-  - `golang.org/x/term` v0.33.0 (terminal control)
-  - `golang.org/x/sys` v0.34.0 (system calls)
-  - `github.com/mattn/go-runewidth` v0.0.16 (Unicode character width handling)
-- **Repository**: `github.com/hnnsb/kigo`
+- Language: Go 1.24.2
+- Dependencies:
+  - golang.org/x/term v0.33.0 (terminal/raw mode handling)
+  - golang.org/x/sys v0.34.0 (system calls)
+  - github.com/mattn/go-runewidth v0.0.16 (Unicode display width)
+- Repository: github.com/hnnsb/kigo
 
 ## Project Structure
 
 ```
 kigo/
-├── main.go                 # Entry point and main loop
-├── go.mod                  # Go module definition
-├── go.sum                  # Dependency checksums
-├── kigo.exe               # Compiled binary (Windows)
-├── README.md              # Project documentation
-├── TODO.md                # Development roadmap and refactoring tasks
-└── editor/                # Core editor package
-    ├── editor.go          # Main editor logic and data structures
-    ├── editor_test.go     # Unit tests
-    ├── ansi.go           # ANSI escape sequences and terminal control
-    ├── explorer.go       # File explorer modal functionality
-    ├── help.go           # Help screen modal
-    └── modal.go          # Modal interface and management system
++-- main.go                 # Program entry point and main event loop
++-- go.mod                  # Go module definition
++-- go.sum                  # Dependency checksums
++-- README.md               # User-facing project documentation
++-- CONTEXT.md              # LLM context and architecture overview
++-- TODO.md                 # Roadmap and refactor tracking
++-- editor/
+    +-- editor.go           # Core models + editing/input logic
+    +-- renderer.go         # ScreenRenderer drawing pipeline
+    +-- modal.go            # Modal interfaces and modal manager
+    +-- explorer.go         # Explorer modal and preview content
+    +-- help.go             # Help modal
+    +-- ansi.go             # ANSI constants and terminal helpers
+    +-- editor_test.go      # Editor tests
+    +-- explorer_test.go    # Explorer tests
 ```
 
 ## Core Architecture
 
-### Main Components
+### 1. Editor as Coordinator
 
-1. **Editor Struct** (`editor/editor.go`):
+The Editor type coordinates the application rather than implementing every concern itself.
 
-   - Central state management for the editor
-   - Handles file operations, cursor movement, and screen rendering
-   - Manages editor modes (EDIT, EXPLORER, SEARCH, SAVE, HELP)
+- Embeds Buffer (content state) and Viewport (cursor/scroll state)
+- Handles input dispatch, mode transitions, and high-level workflow
+- Delegates all terminal drawing to ScreenRenderer
+- Maintains modal context via activeModal
 
-2. **Modal System** (`editor/modal.go`):
+### 2. Buffer Model
 
-   - Interface-based modal screens (help, explorer, search)
-   - State preservation when switching between modals
-   - Consistent key handling across different modal types
+Buffer represents file/content state:
 
-3. **Terminal Management** (`editor/ansi.go`):
+- row []DisplayLine
+- totalRows
+- dirty
+- filename
+- syntax
 
-   - ANSI escape sequence constants
-   - Raw mode terminal control
-   - Cross-platform terminal handling (Windows/Unix)
+This keeps file-backed content concerns separate from terminal viewport concerns.
 
-4. **File Explorer** (`editor/explorer.go`):
-   - Directory navigation modal
-   - File selection and opening
-   - State management for editor context switching
+### 3. Viewport Model
 
-### Key Data Structures
+Viewport tracks where and how content is shown:
+
+- Cursor: cx, cy
+- Render cursor x: rx
+- Scroll offsets: rowOffset, colOffset
+- Visible area: screenRows, screenCols
+
+Viewport.Scroll(totalRows, rows) computes cursor-relative scrolling.
+
+### 4. ScreenRenderer
+
+ScreenRenderer in editor/renderer.go owns terminal output rendering.
+
+- Draws body rows, status bar, message bar, and cursor position
+- Applies syntax styles/colors
+- Handles Unicode width-aware clipping and alignment via go-runewidth
+- Supports split-view rendering for modals that implement SplitViewModal
+
+### 5. Modal System
+
+modal.go defines an interface-based modal architecture:
+
+- ModalScreen for regular modal behavior
+- SplitViewModal for left-pane content + right-pane preview
+- ModalManager for save/restore of editor state and modal loop control
+
+### 6. Explorer Integration
+
+ExplorerScreen (explorer.go):
+
+- Reads and sorts directory entries (directories first)
+- Produces DisplayLine content for modal list rendering
+- Provides optional split-view preview content for files
+- Uses modal save/restore state transitions when entering/exiting explorer mode
+
+## Key Data Structures
 
 ```go
-// Main editor state
 type Editor struct {
-    cx, cy           int              // Cursor position
-    rx               int              // Render x position
-    rowOffset        int              // Vertical scroll
-    colOffset        int              // Horizontal scroll
-    screenRows       int              // Terminal dimensions
-    screenCols       int
-    totalRows        int              // Number of text rows
-    row             []editorRow       // Text content rows
-    dirty           int               // Unsaved changes counter
-    filename        string            // Current file
-    statusmsg       string            // Status bar message
-    statusmsgTime   time.Time         // Status message timestamp
-    syntax          *editorSyntax     // Syntax highlighting rules
-    mode            int               // Current editor mode
-    terminal        Terminal          // Terminal state
+    Viewport
+    Buffer
+    statusMessage     string
+    statusMessageTime time.Time
+    mode              int
+    terminal          *Terminal
+    renderer          *ScreenRenderer
+    activeModal       ModalScreen
 }
 
-// Individual text row with Unicode support
-type editorRow struct {
-    idx           int       // Row index
-    chars         []rune    // Raw characters (Unicode support)
-    render        []rune    // Rendered characters (tabs expanded, Unicode-aware)
-    hl            []int     // Syntax highlighting data
-    hlOpenComment bool      // Multi-line comment state
+type Buffer struct {
+    totalRows int
+    row       []DisplayLine
+    dirty     int
+    filename  string
+    syntax    *editorSyntax
 }
 
-// Modal interface for screens
+type Viewport struct {
+    cx, cy     int
+    rx         int
+    rowOffset  int
+    colOffset  int
+    screenRows int
+    screenCols int
+}
+
+type DisplayLine struct {
+    idx           int
+    chars         []rune
+    render        []rune
+    hl            []int
+    hlOpenComment bool
+}
+
 type ModalScreen interface {
-    GetContent() []editorRow
+    GetContent() []DisplayLine
     GetTitle() string
     GetStatusMessage() string
     HandleKey(key int, e *Editor) (bool, bool)
     Initialize(e *Editor)
 }
+
+type SplitViewModal interface {
+    ModalScreen
+    ShouldShowSplitView(screenCols int) bool
+    GetSplitViewContent(e *Editor, rightWidth int, maxPreviewLines int) ([]DisplayLine, []string)
+}
 ```
+
+## Current Status
+
+### Completed
+
+- Global state removed in favor of Editor struct
+- Unicode support implemented with rune-based text handling
+- Buffer and Viewport model split implemented
+- ScreenRenderer extracted from core editor logic
+- Scroll behavior moved into Viewport.Scroll
+- Split-view modal rendering integrated for explorer preview
+
+### Active Refactor Direction
+
+- Continue extracting content-centric methods from Editor into Buffer-focused behavior
+- Expand tests around viewport edge cases and renderer clipping
+- Tighten interface boundaries for terminal I/O and file I/O
 
 ## Key Features
 
-### Editor Functionality
+- File open/save/new
+- Cursor/navigation editing controls
+- Search/find workflow
+- Syntax highlighting
+- Modal explorer/help flows
+- Unicode-aware rendering and editing
 
-- **File Operations**: Open, save, new file creation
-- **Navigation**: Arrow keys, Page Up/Down, Home/End
-- **Editing**: Insert, delete, backspace with undo/redo tracking
-- **Search**: Text search with highlighting and navigation
-- **Syntax Highlighting**: Configurable syntax rules for different file types
+## Runtime Flow (High Level)
 
-### Modal Screens
-
-- **File Explorer** (Ctrl+E): Navigate and open files
-- **Help Screen** (Ctrl+H): Display keyboard shortcuts and commands
-- **Search Mode** (Ctrl+F): Find and replace functionality
-- **Save Mode**: File saving with name prompts
-
-### Terminal Features
-
-- **Raw Mode**: Direct keyboard input handling
-- **Cross-platform**: Windows and Unix terminal support
-- **ANSI Control**: Screen clearing, cursor positioning, text formatting
-- **Responsive**: Dynamic screen size handling
-
-## Key Constants and Enums
-
-```go
-// Editor modes
-const (
-    EDIT_MODE = iota
-    EXPLORER_MODE
-    SEARCH_MODE
-    SAVE_MODE
-    HELP_MODE
-)
-
-// Special keys
-const (
-    BACKSPACE = 127
-    ARROW_LEFT = iota + 1000
-    ARROW_RIGHT
-    ARROW_UP
-    ARROW_DOWN
-    DELETE_KEY
-    HOME_KEY
-    END_KEY
-    PAGE_UP
-    PAGE_DOWN
-)
-
-// Syntax highlighting types
-const (
-    HL_NORMAL = iota
-    HL_COMMENT
-    HL_MLCOMMENT
-    HL_KEYWORD1
-    HL_KEYWORD2
-    HL_STRING
-    HL_NUMBER
-    HL_MATCH
-    HL_CONTROL
-)
-```
-
-## Unicode Support Implementation
-
-### Rune-Based Architecture
-
-KIGO now implements comprehensive Unicode support through a rune-based text handling system:
-
-**Input Handling**:
-
-- Simplified input system with single `readKey()` function returning runes
-- UTF-8 sequence detection and decoding
-- Proper handling of multi-byte characters (ä, ö, ü, emoji, etc.)
-
-**Text Storage**:
-
-- `[]rune` slices for character data instead of `[]byte`
-- Unicode-aware cursor positioning and text operations
-- Correct character counting and indexing
-
-**Display Rendering**:
-
-- Integration with `go-runewidth` for proper character width calculation
-- Support for wide characters (CJK, emoji)
-- ANSI escape sequence handling for terminal control
-
-**Key Features**:
-
-- Multi-byte character support (German umlauts, accented characters)
-- Emoji rendering and editing
-- CJK character support (Chinese, Japanese, Korean)
-- Correct cursor movement across Unicode boundaries
-
-## Development Status
-
-### Completed Refactoring (from TODO.md)
-
-- ✅ Replaced global state with Editor struct
-- ✅ Improved error handling patterns
-- ✅ Organized constants and naming conventions
-- ✅ Dependency injection for editor state
-- ✅ **Unicode Support**: Complete rune-based text handling
-- ✅ **String/Byte Handling**: Proper UTF-8 and Unicode character support
-
-### Pending Improvements
-
-- 🔄 Interface definitions for terminal/file operations
-- 🔄 Memory management optimization
-- 🔄 Multi-package organization
-- 🔄 **Enhanced Syntax Highlighting**: Rune-based syntax highlighting system
-- 🔄 Configuration file support
-- 🔄 Enhanced file explorer UI
-
-## Testing
-
-- **Unit Tests**: `editor_test.go` with basic functionality tests
-- **Test Coverage**: Limited to core editor row operations
-- **Testing Strategy**: Focused on data structure manipulation
-
-## Usage Patterns
-
-### Key Bindings
-
-- **Ctrl+S**: Save file
-- **Ctrl+Q**: Quit (with confirmation)
-- **Ctrl+F**: Find/Search
-- **Ctrl+E**: File Explorer
-- **Ctrl+H**: Help screen
-- **Ctrl+R**: Redraw screen
-
-### Command Line
-
-```bash
-./kigo [filename]    # Open specific file
-./kigo              # Start with empty file
-```
+1. main.go creates Editor and initializes terminal + screen.
+2. Main loop repeatedly calls RefreshScreen() and ProcessKeypress().
+3. Editor delegates rendering to ScreenRenderer.
+4. Modal workflows run through ModalManager and restore state on exit.
 
 ## Architecture Decisions
 
-1. **Single Package for Core Logic**: Editor functionality concentrated in `editor/` package
-2. **Modal Interface Pattern**: Consistent screen management across different editor modes
-3. **State Preservation**: Save/restore editor state when switching between modals
-4. **Raw Terminal Control**: Direct ANSI escape sequence handling for performance
-5. **Go Idiomatic Patterns**: Struct methods, interface-based design, proper error handling
-
-## File Handling
-
-- **Auto-detection**: File type detection for syntax highlighting
-- **Cross-platform**: Handles different line endings (Windows: \r\n, Unix: \n)
-- **Dirty Tracking**: Monitors unsaved changes with confirmation prompts
-- **Explorer Integration**: Modal file browser for easy file navigation
-
-This context provides LLM agents with comprehensive understanding of KIGO's architecture, current implementation status, and development patterns for effective code assistance and modification suggestions.
+1. Keep Editor as orchestration layer.
+2. Keep content and viewport concerns split (Buffer vs Viewport).
+3. Keep terminal painting isolated in ScreenRenderer.
+4. Keep modal behavior interface-driven with optional split-view extension.
+5. Prefer rune-based pipelines end-to-end for Unicode correctness.

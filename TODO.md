@@ -16,9 +16,11 @@
 
 - [ ] Config via config file (user settings, keybindings, themes)
 - [ ] Beautify explorer screen
-  - [ ] Sort directories first, then files
-  - [ ] Add file type icons or indicators
-  - [ ] Show file sizes
+  - [x] Sort directories first, then files
+  - [x] Add file type indicators/icons
+  - [x] Show file sizes
+  - [ ] Add gitignore-style hidden file toggle
+  - [ ] Improve preview metadata (encoding, line count, binary hints)
 - [ ] Search/Find functionality enhancements
 - [ ] Syntax highlighting for more languages
 
@@ -50,12 +52,21 @@
 - [x] Implement proper Unicode support with runes
 - [x] Consistent string/byte usage
 
+**13. Rendering and View Model Refactor**
+
+- [x] Introduce `Buffer` model for file/content state
+- [x] Introduce `Viewport` model for cursor and scroll state
+- [x] Extract terminal drawing to `ScreenRenderer` in `renderer.go`
+- [x] Move scroll calculations into `Viewport.Scroll()`
+- [x] Route editor draw calls through renderer abstraction
+- [x] Add split-view renderer support for explorer preview
+
 ### 🔄 In Progress / Next Steps
 
 **4. Function Organization and Interfaces** (Medium Priority)
 
-- [ ] Define interfaces for terminal operations, file operations, rendering
-- [ ] Convert package-level functions to methods on appropriate structs
+- [ ] Define narrower interfaces for terminal I/O and file I/O boundaries
+- [ ] Continue moving content-centric logic from `Editor` to `Buffer` methods
 - [ ] Consider splitting into subpackages (terminal, renderer, syntax) if needed
 - [ ] Follow Go naming conventions for methods (methods on receivers)
 
@@ -70,8 +81,15 @@
 
 - [ ] Consider typed constants for keys instead of raw `int`
 - [ ] Implement enum-like types for syntax highlighting rules
-- [ ] Add helper methods to `editorRow` and `editorSyntax` types
+- [ ] Add helper methods to `DisplayLine` and `editorSyntax` types
 - [ ] Review pointer vs value receiver patterns
+
+**14. Refactor Validation and Tests** (Medium Priority)
+
+- [ ] Add focused unit tests for `Viewport.Scroll()` edge cases
+- [ ] Add tests for renderer clipping with wide Unicode runes
+- [ ] Add tests for split-view rendering fallbacks at narrow terminal widths
+- [ ] Add modal integration tests covering save/restore state transitions
 
 ### 📋 Future Work (Lower Priority)
 
@@ -112,7 +130,13 @@
 
 ## Implementation Strategy
 
-1. **Current Focus**: Verify unicode-support branch completion
-2. **Next Phase**: Function organization and type system improvements (sections 4, 6)
-3. **Then**: Configuration system and testing improvements (sections 8, 10)
-4. **Future**: Concurrency features and advanced architecture (sections 7, 12)
+1. **Current Focus**: Stabilize Buffer/Viewport/Renderer refactor with tests
+2. **Next Phase**: Continue extracting responsibilities from `Editor` (sections 4, 5, 6)
+3. **Then**: Configuration system and testing improvements (sections 8, 10, 14)
+4. **Future**: Concurrency features and advanced syntax architecture (sections 7, 12)
+
+# Issues
+
+- Make it possible to open Directories and start in Explorer View
+- Line Count in status bar changes when opening Explorer
+- Add Line numbers to editor (toggleable)

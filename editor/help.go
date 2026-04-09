@@ -4,7 +4,7 @@ import "fmt"
 
 // HelpScreen implements the ModalScreen interface for the help display
 type HelpScreen struct {
-	content []editorRow
+	content []DisplayLine
 }
 
 // NewHelpScreen creates a new help screen
@@ -42,9 +42,9 @@ func NewHelpScreen(editor *Editor) *HelpScreen {
 	}
 
 	// Convert help content to editor rows
-	content := make([]editorRow, len(helpContent))
+	content := make([]DisplayLine, len(helpContent))
 	for i, line := range helpContent {
-		content[i] = editorRow{
+		content[i] = DisplayLine{
 			idx:   i,
 			chars: []rune(line),
 		}
@@ -57,7 +57,7 @@ func NewHelpScreen(editor *Editor) *HelpScreen {
 }
 
 // GetContent returns the help content rows
-func (h *HelpScreen) GetContent() []editorRow {
+func (h *HelpScreen) GetContent() []DisplayLine {
 	return h.content
 }
 

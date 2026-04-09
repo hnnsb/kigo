@@ -7,7 +7,7 @@ import (
 func TestEditorRowDeleteChar(t *testing.T) {
 	e := &Editor{}
 	// Create a test row
-	row := &editorRow{
+	row := &DisplayLine{
 		idx:           0,
 		chars:         []rune("hello"),
 		render:        nil,
@@ -37,7 +37,7 @@ func TestEditorRowDeleteChar(t *testing.T) {
 func TestEditorRowDeleteCharMultiple(t *testing.T) {
 	e := &Editor{}
 	// Create a test row
-	row := &editorRow{
+	row := &DisplayLine{
 		idx:           0,
 		chars:         []rune("abc"),
 		render:        nil,
@@ -64,3 +64,4 @@ func TestEditorRowDeleteCharMultiple(t *testing.T) {
 		t.Errorf("Expected chars slice length 1, got %d", len(row.chars))
 	}
 }
+

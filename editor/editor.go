@@ -21,7 +21,7 @@ const (
 	KIGO_VERSION           = "1.0.0"
 	TAB_STOP               = 4
 	CONTROL_SEQUENCE_WIDTH = 2
-	QUIT_TIMES             = 3
+	QUIT_TIMES             = 2
 )
 
 // getLineEnding returns the appropriate line ending for the current OS
@@ -186,6 +186,14 @@ var HLDB_ENTRIES = []editorSyntax{
 		multilineCommentStart:  "/*",
 		multilineCommentEnd:    "*/",
 		flags:                  HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS,
+	},
+	{
+		filetype:               "markdown",
+		filematch:              []string{".md", ".markdown"},
+		keywords:               [][]string{{"#"}, {"-", "*", "+"}},
+		singlelineCommentStart: "#",
+		multilineCommentStart:  "/*",
+		multilineCommentEnd:    "*/",
 	},
 }
 

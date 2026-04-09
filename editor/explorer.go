@@ -3,6 +3,7 @@ package editor
 import (
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 )
 
@@ -65,6 +66,17 @@ func NewExplorerScreen(editor *Editor, startDir string) *ExplorerScreen {
 func (ex *ExplorerScreen) refreshContent() error {
 	// Read current directory contents
 	files, err := os.ReadDir(ex.currentDir)
+	slices.SortFunc(files, func(a, b os.DirEntry) int {
+		// Directories first
+		if a.IsDir() && !b.IsDir() {
+			return -1
+		}
+		if !a.IsDir() && b.IsDir() {
+			return 1
+		}
+		return strings.Compare(a.Name(), b.Name())
+	})
+
 	if err != nil {
 		return err
 	}
@@ -93,7 +105,7 @@ func (ex *ExplorerScreen) createExplorerRows(files []os.DirEntry, currentDir str
 
 	// Add parent directory option (unless we're at root)
 	if ex.hasParentDir {
-		parentText := "📂 .. (parent directory)"
+		parentText := "⏎ .. (parent directory)"
 		parentRow := editorRow{
 			idx:   1,
 			chars: []rune(parentText),
@@ -116,14 +128,14 @@ func (ex *ExplorerScreen) createExplorerRows(files []os.DirEntry, currentDir str
 func (ex *ExplorerScreen) createFileDisplayRow(index int, file os.DirEntry) editorRow {
 	var fileInfo string
 	if file.IsDir() {
-		fileInfo = fmt.Sprintf("📁 %s/", file.Name())
+		fileInfo = fmt.Sprintf("🗀 %s/", file.Name())
 	} else {
 		info, _ := file.Info()
 		size := ""
 		if info != nil {
 			size = fmt.Sprintf(" (%d bytes)", info.Size())
 		}
-		fileInfo = fmt.Sprintf("📄 %s%s", file.Name(), size)
+		fileInfo = fmt.Sprintf("🗋 %s%s", file.Name(), size)
 	}
 
 	return editorRow{
@@ -173,6 +185,12 @@ func (ex *ExplorerScreen) HandleKey(key int, e *Editor) (bool, bool) {
 		if opened {
 			return true, false // Close modal but keep new file state (don't restore)
 		}
+
+		// Directory was not changed, since current file has unsaved changes
+		if e.dirty > 0 {
+			return false, false
+		}
+
 		// Directory was changed, update display with new cursor position
 		if ex.hasParentDir {
 			e.cy = 2 // Skip header and parent dir option

@@ -140,3 +140,4 @@
 - Make it possible to open Directories and start in Explorer View
 - Line Count in status bar changes when opening Explorer
 - Add Line numbers to editor (toggleable)
+- allow combination of different text stylings instead of being limited to two

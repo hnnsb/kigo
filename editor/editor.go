@@ -155,6 +155,13 @@ type Viewport struct {
 	screenCols int
 }
 
+type SearchState struct {
+	lastMatch   int
+	direction   int
+	savedHlLine int
+	savedHl     []int
+}
+
 // Terminal handles terminal-specific operations
 type Terminal struct {
 	originalState *term.State
@@ -170,6 +177,7 @@ type Editor struct {
 	terminal          *Terminal
 	renderer          *ScreenRenderer
 	activeModal       ModalScreen // Active modal screen (for split view support)
+	searchState       SearchState
 }
 
 /*** filetypes ***/
@@ -878,6 +886,7 @@ func (e *Editor) Open(filename string) error {
 	e.rowOffset = 0
 	e.colOffset = 0
 	e.rx = 0
+	e.resetFindState()
 	return e.Buffer.Open(e, filename)
 }
 
@@ -924,48 +933,38 @@ func (e *Editor) Save() {
 		return
 	}
 
-	// Success message with byte count (equivalent to C version's success case)
 	e.SetStatusMessage("%d bytes written to disk", length)
 }
 
 /*** find ***/
-
-var (
-	lastMatch   = -1
-	direction   = 1
-	savedHlLine int
-	savedHl     []int = nil
-)
-
 func (e *Editor) FindCallback(query []byte, key int) {
-
-	if savedHl != nil {
-		// Restore previous highlights
-		copy(e.row[savedHlLine].hl, savedHl)
-		savedHl = nil
+	if e.searchState.savedHl != nil && e.searchState.savedHlLine >= 0 && e.searchState.savedHlLine < len(e.row) {
+		copy(e.row[e.searchState.savedHlLine].hl, e.searchState.savedHl)
+		e.searchState.savedHl = nil
 	}
 
 	switch key {
 	case '\r', '\x1b':
-		lastMatch = -1
-		direction = 1
+		e.searchState.lastMatch = -1
+		e.searchState.direction = 1
 		return
 	case ARROW_RIGHT, ARROW_DOWN:
-		direction = 1
+		e.searchState.direction = 1
 	case ARROW_LEFT, ARROW_UP:
-		direction = -1
+		e.searchState.direction = -1
 	default:
-		lastMatch = -1
-		direction = 1
+		e.searchState.lastMatch = -1
+		e.searchState.direction = 1
 	}
 
-	if lastMatch == -1 {
-		direction = 1
+	if e.searchState.lastMatch == -1 {
+		e.searchState.direction = 1
 	}
-	current := lastMatch
+	current := e.searchState.lastMatch
+	queryRunes := []rune(string(query))
 
 	for range e.totalRows {
-		current += direction
+		current += e.searchState.direction
 		switch current {
 		case -1:
 			current = e.totalRows - 1
@@ -974,18 +973,16 @@ func (e *Editor) FindCallback(query []byte, key int) {
 		}
 
 		row := &e.row[current]
-		// Convert query to runes for searching
-		queryRunes := []rune(string(query))
 		match := runeIndexOf(row.render, queryRunes)
 		if match != -1 {
-			lastMatch = current
+			e.searchState.lastMatch = current
 			e.cy = current
 			e.cx = row.rxToCx(match)
 			e.rowOffset = e.totalRows
 
-			savedHlLine = current
-			savedHl = make([]int, len(row.hl))
-			copy(savedHl, row.hl)
+			e.searchState.savedHlLine = current
+			e.searchState.savedHl = make([]int, len(row.hl))
+			copy(e.searchState.savedHl, row.hl)
 			// Highlight the match
 			for k := match; k < match+len(queryRunes) && k < len(row.hl); k++ {
 				row.hl[k] = HL_MATCH
@@ -1295,6 +1292,12 @@ func NewEditor() Editor {
 	return Editor{
 		terminal: NewTerminal(),
 		renderer: NewScreenRenderer(),
+		searchState: SearchState{
+			lastMatch:   -1,
+			direction:   1,
+			savedHlLine: -1,
+			savedHl:     nil,
+		},
 	}
 }
 
@@ -1311,6 +1314,7 @@ func (e *Editor) Init() error {
 	e.statusMessageTime = time.Time{}
 	e.syntax = nil
 	e.mode = EDIT_MODE
+	e.resetFindState()
 
 	var err error
 	e.screenRows, e.screenCols, err = getWindowsSize()
@@ -1319,4 +1323,11 @@ func (e *Editor) Init() error {
 	}
 	e.screenRows -= 2
 	return nil
+}
+
+func (e *Editor) resetFindState() {
+	e.searchState.lastMatch = -1
+	e.searchState.direction = 1
+	e.searchState.savedHlLine = -1
+	e.searchState.savedHl = nil
 }

@@ -73,7 +73,7 @@ func TestBuildPreviewLinesForSelectedFile(t *testing.T) {
 		currentDir: tmpDir,
 		files:      entries,
 	}
-	e := &Editor{Viewport: Viewport{cy: 1}}
+	e := &Editor{Viewport: Viewport{cy: 2}}
 
 	lines := ex.buildPreviewLines(e, 24, 8)
 	if len(lines) == 0 {

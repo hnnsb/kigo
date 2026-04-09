@@ -49,6 +49,55 @@ func (e *Editor) setEditorState(state EditorState) {
 	e.mode = EDIT_MODE
 }
 
+func (ex *ExplorerScreen) separatorRowIndex() int {
+	return 1
+}
+
+func (ex *ExplorerScreen) parentRowIndex() int {
+	return 2
+}
+
+func (ex *ExplorerScreen) firstFileRowIndex() int {
+	if ex.hasParentDir {
+		return 3
+	}
+	return 2
+}
+
+func (ex *ExplorerScreen) rowIndexForFile(index int) int {
+	return ex.firstFileRowIndex() + index
+}
+
+func (ex *ExplorerScreen) setExplorerContent(e *Editor) {
+	e.row = ex.content
+	e.totalRows = len(ex.content)
+	e.rowOffset = 0
+	e.SetStatusMessage("%s", ex.GetStatusMessage())
+}
+
+func (ex *ExplorerScreen) setCursorToFirstFile(e *Editor) {
+	e.cy = ex.firstFileRowIndex()
+	ex.setExplorerContent(e)
+}
+
+func (ex *ExplorerScreen) selectionAtCursor(e *Editor) (selectedPath string, selectedEntry os.DirEntry, hasSelection bool) {
+	if ex.hasParentDir && e.cy == ex.parentRowIndex() {
+		return filepath.Dir(ex.currentDir), nil, true
+	}
+
+	if e.cy < ex.firstFileRowIndex() || e.cy >= len(ex.content) {
+		return "", nil, false
+	}
+
+	fileIndex := e.cy - ex.firstFileRowIndex()
+	if fileIndex < 0 || fileIndex >= len(ex.files) {
+		return "", nil, false
+	}
+
+	entry := ex.files[fileIndex]
+	return filepath.Join(ex.currentDir, entry.Name()), entry, true
+}
+
 // ExplorerScreen implements the ModalScreen interface for file exploration
 type ExplorerScreen struct {
 	currentDir   string
@@ -115,7 +164,7 @@ func (ex *ExplorerScreen) createExplorerRows(files []os.DirEntry, currentDir str
 		headerRow.hl[i] = HL_NORMAL
 	}
 	explorerRows = append(explorerRows, headerRow)
-	separatorRow := DisplayLine{idx: 1, chars: []rune(strings.Repeat("-", ex.editor.screenCols))}
+	separatorRow := DisplayLine{idx: ex.separatorRowIndex(), chars: []rune(strings.Repeat("-", ex.editor.screenCols))}
 	separatorRow.Update(ex.editor)
 	explorerRows = append(explorerRows, separatorRow)
 
@@ -123,7 +172,7 @@ func (ex *ExplorerScreen) createExplorerRows(files []os.DirEntry, currentDir str
 	if ex.hasParentDir {
 		parentText := "⏎ .."
 		parentRow := DisplayLine{
-			idx:   2,
+			idx:   ex.parentRowIndex(),
 			chars: []rune(parentText),
 		}
 		parentRow.Update(ex.editor)
@@ -155,7 +204,7 @@ func (ex *ExplorerScreen) createFileDisplayRow(index int, file os.DirEntry) Disp
 	}
 
 	return DisplayLine{
-		idx:   index + 3, // +3 to account for header, separator, and potential parent dir option
+		idx:   ex.rowIndexForFile(index),
 		chars: []rune(fileInfo),
 	}
 }
@@ -249,7 +298,7 @@ func (ex *ExplorerScreen) buildPreviewLines(e *Editor, width int, maxLines int) 
 		return nil
 	}
 	preview := make([]string, 0, maxLines)
-	selectedPath, selectedEntry, hasSelection := ex.getSelection(e)
+	selectedPath, selectedEntry, hasSelection := ex.selectionAtCursor(e)
 
 	// Build header and separator
 	header := ex.buildPreviewHeader(selectedPath, selectedEntry, hasSelection)
@@ -431,27 +480,6 @@ func fitPreviewLine(s string, width int) string {
 	return string(runes)
 }
 
-// getSelection returns the current explorer selection.
-// If selectedEntry is nil and hasSelection is true, the parent directory action is selected.
-func (ex *ExplorerScreen) getSelection(e *Editor) (selectedPath string, selectedEntry os.DirEntry, hasSelection bool) {
-	selectedIndex := e.cy - 2 // account for header and separator rows
-
-	if ex.hasParentDir && selectedIndex == 0 {
-		return filepath.Dir(ex.currentDir), nil, true
-	}
-
-	if ex.hasParentDir {
-		selectedIndex--
-	}
-
-	if selectedIndex < 0 || selectedIndex >= len(ex.files) {
-		return "", nil, false
-	}
-
-	entry := ex.files[selectedIndex]
-	return filepath.Join(ex.currentDir, entry.Name()), entry, true
-}
-
 func (ex *ExplorerScreen) moveToParentDirectory() {
 	ex.currentDir = filepath.Dir(ex.currentDir)
 }
@@ -459,11 +487,7 @@ func (ex *ExplorerScreen) moveToParentDirectory() {
 // Initialize sets up the initial cursor position for the explorer
 func (ex *ExplorerScreen) Initialize(e *Editor) {
 	// Start at first file (skip header and optionally parent dir)
-	if ex.hasParentDir {
-		e.cy = 3 // Skip header, separator, and parent dir option
-	} else {
-		e.cy = 2 // Skip header and separator
-	}
+	ex.setCursorToFirstFile(e)
 	ex.highlightSelectedFile(e)
 }
 
@@ -485,18 +509,7 @@ func (ex *ExplorerScreen) HandleKey(key int, e *Editor) (bool, bool) {
 				e.ShowError("Failed to read directory: %v", err)
 				return false, false
 			}
-			// Update display with new cursor position
-			if ex.hasParentDir {
-				e.cy = 3 // Skip header and parent dir option
-			} else {
-				e.cy = 2 // Skip only header
-			}
-			e.rowOffset = 0
-			// Update the editor's row content with new directory content
-			e.row = ex.content
-			e.totalRows = len(ex.content)
-			// Update status message
-			e.SetStatusMessage("%s", ex.GetStatusMessage())
+			ex.setCursorToFirstFile(e)
 		}
 
 	case '\r', ARROW_RIGHT: // Enter key
@@ -510,18 +523,7 @@ func (ex *ExplorerScreen) HandleKey(key int, e *Editor) (bool, bool) {
 			return false, false
 		}
 
-		// Directory was changed, update display with new cursor position
-		if ex.hasParentDir {
-			e.cy = 3 // Skip header, separator, and parent dir option
-		} else {
-			e.cy = 2 // Skip header and separator
-		}
-		e.rowOffset = 0
-		// Update the editor's row content with new directory content
-		e.row = ex.content
-		e.totalRows = len(ex.content)
-		// Update status message
-		e.SetStatusMessage("%s", ex.GetStatusMessage())
+		ex.setCursorToFirstFile(e)
 	}
 	ex.highlightSelectedFile(e)
 
@@ -530,23 +532,16 @@ func (ex *ExplorerScreen) HandleKey(key int, e *Editor) (bool, bool) {
 
 // handleExplorerNavigation handles arrow key navigation in the explorer
 func (ex *ExplorerScreen) handleExplorerNavigation(key int, e *Editor) {
-	minCy := 2 // Start after header
-	if ex.hasParentDir {
-		minCy = 2 // Can navigate to parent dir option
-	}
-
-	maxItems := len(ex.files)
-	if ex.hasParentDir {
-		maxItems++ // Add parent dir option
-	}
+	minCy := ex.parentRowIndex()
+	maxCy := len(ex.content) - 1
 
 	switch key {
 	case ARROW_UP:
-		if e.cy > minCy {
+		if e.cy > minCy-1 {
 			e.cy--
 		}
 	case ARROW_DOWN:
-		if e.cy < minCy+maxItems {
+		if e.cy < maxCy {
 			e.cy++
 		}
 	}
@@ -576,10 +571,12 @@ func (ex *ExplorerScreen) highlightSelectedFile(e *Editor) {
 
 // openSelectedFile attempts to open the currently selected file or navigate to directory
 func (ex *ExplorerScreen) openSelectedFile(e *Editor) bool {
-	selectedIndex := e.cy - 2 // -2 to account for header and separator
+	selectedPath, selectedEntry, hasSelection := ex.selectionAtCursor(e)
+	if !hasSelection {
+		return false
+	}
 
-	// Handle parent directory navigation
-	if ex.hasParentDir && selectedIndex == 0 {
+	if selectedEntry == nil {
 		ex.moveToParentDirectory()
 		err := ex.refreshContent()
 		if err != nil {
@@ -589,21 +586,9 @@ func (ex *ExplorerScreen) openSelectedFile(e *Editor) bool {
 		return false // Directory changed, don't close explorer
 	}
 
-	// Adjust index if parent dir option is present
-	if ex.hasParentDir {
-		selectedIndex--
-	}
-
-	if selectedIndex < 0 || selectedIndex >= len(ex.files) {
-		return false
-	}
-
-	selectedFile := ex.files[selectedIndex]
-
-	if selectedFile.IsDir() {
+	if selectedEntry.IsDir() {
 		// Navigate into directory
-		newDir := filepath.Join(ex.currentDir, selectedFile.Name())
-		ex.currentDir = newDir
+		ex.currentDir = selectedPath
 		err := ex.refreshContent()
 		if err != nil {
 			e.ShowError("Failed to read directory: %v", err)
@@ -618,9 +603,7 @@ func (ex *ExplorerScreen) openSelectedFile(e *Editor) bool {
 	}
 
 	// Open regular file
-	filePath := filepath.Join(ex.currentDir, selectedFile.Name())
-
-	err := e.Open(filePath)
+	err := e.Open(selectedPath)
 	if err != nil {
 		e.ShowError("Failed to open file: %v", err)
 		return false

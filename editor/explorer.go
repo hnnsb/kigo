@@ -180,7 +180,42 @@ func (ex *ExplorerScreen) HandleKey(key int, e *Editor) (bool, bool) {
 		ex.handleExplorerNavigation(key, e)
 		ex.highlightSelectedFile(e)
 
-	case '\r': // Enter key
+	case ARROW_LEFT: // Go to parent directory
+		if ex.hasParentDir {
+			// Navigate to parent directory
+			parentDir := ".."
+			if ex.currentDir != "." {
+				// Get actual parent path
+				if lastSlash := strings.LastIndex(ex.currentDir, "/"); lastSlash != -1 {
+					parentDir = ex.currentDir[:lastSlash]
+					if parentDir == "" {
+						parentDir = "."
+					}
+				} else {
+					parentDir = "."
+				}
+			}
+			ex.currentDir = parentDir
+			err := ex.refreshContent()
+			if err != nil {
+				e.ShowError("Failed to read directory: %v", err)
+				return false, false
+			}
+			// Update display with new cursor position
+			if ex.hasParentDir {
+				e.cy = 2 // Skip header and parent dir option
+			} else {
+				e.cy = 1 // Skip only header
+			}
+			e.rowOffset = 0
+			// Update the editor's row content with new directory content
+			e.row = ex.content
+			e.totalRows = len(ex.content)
+			// Update status message
+			e.SetStatusMessage("%s", ex.GetStatusMessage())
+		}
+
+	case '\r', ARROW_RIGHT: // Enter key
 		opened := ex.openSelectedFile(e)
 		if opened {
 			return true, false // Close modal but keep new file state (don't restore)
@@ -204,6 +239,7 @@ func (ex *ExplorerScreen) HandleKey(key int, e *Editor) (bool, bool) {
 		// Update status message
 		e.SetStatusMessage("%s", ex.GetStatusMessage())
 	}
+	ex.highlightSelectedFile(e)
 
 	return false, false // Don't close modal
 }

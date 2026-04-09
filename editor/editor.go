@@ -515,7 +515,7 @@ func (row *editorRow) UpdateSyntax(e *Editor) {
 func syntaxToGraphics(hl int) (int, int) {
 	switch hl {
 	case HL_COMMENT, HL_MLCOMMENT:
-		return ANSI_COLOR_CYAN, 0
+		return ANSI_COLOR_CYAN, ANSI_ITALIC
 	case HL_KEYWORD1:
 		return ANSI_COLOR_YELLOW, 0
 	case HL_KEYWORD2:
@@ -525,7 +525,7 @@ func syntaxToGraphics(hl int) (int, int) {
 	case HL_NUMBER:
 		return ANSI_COLOR_RED, 0
 	case HL_MATCH:
-		return ANSI_COLOR_BLUE, ANSI_REVERSE
+		return ANSI_COLOR_BLUE_INTENSE, ANSI_REVERSE
 	case HL_CONTROL:
 		return ANSI_COLOR_RED, ANSI_REVERSE
 	default:

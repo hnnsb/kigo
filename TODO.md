@@ -1,111 +1,118 @@
-# Bugs
+# KIGO - Development Roadmap
 
-# Improvements
+## Known Issues & Bug Fixes
 
-- Config via config file
-- beautify explorer screen
-  - sort dirs first and files second
-- [x] clear up []byte vs int vs string usage, switch to runes
-  - [x] allows umlauts ä, ö, ü etc. (Currently are displayed but cursors is messed up) (runes?)
+### Current (fix/unicode-support branch)
+
+- [ ] Verify Unicode character width calculations in modal content
+- [ ] Test cursor positioning with multi-byte characters (emoji, CJK)
+- [ ] Ensure file explorer displays Unicode filenames correctly
+
+### General Bugs
+
+- No critical bugs reported currently
+
+## Feature Improvements
+
+- [ ] Config via config file (user settings, keybindings, themes)
+- [ ] Beautify explorer screen
+  - [ ] Sort directories first, then files
+  - [ ] Add file type icons or indicators
+  - [ ] Show file sizes
+- [ ] Search/Find functionality enhancements
+- [ ] Syntax highlighting for more languages
 
 ## Go Idiomatic Refactoring Opportunities
 
-### 1. Error Handling & Recovery
+### ✅ Completed (v1.0.0)
 
-- [x] Replace `die()` function with proper Go error handling patterns
-- [x] Return errors from functions instead of calling `die()` internally
-- [x] Create custom error types for different failure modes
-- [x] Implement graceful error recovery without terminating the program
+**1. Error Handling & Recovery**
 
-### 2. Global State Management
+- [x] Replace `die()` function with proper Go error handling
+- [x] Return errors from functions instead of fatal exits
+- [x] Create custom error types
+- [x] Implement graceful error recovery
 
-- [x] Eliminate global variable `E` (editorConfig)
-- [x] Create an Editor struct and pass it around instead of global access
-- [x] Use dependency injection patterns
-- [x] Separate editor state from terminal/display state
-- [x] Convert all functions to methods or accept Editor parameter
+**2. Global State Management**
 
-### 3. Constants and Naming Conventions
+- [x] Eliminate global variable `E`
+- [x] Create proper Editor struct with dependency injection
+- [x] Pass editor context through function calls
+
+**3. Constants and Naming Conventions**
 
 - [x] Group related constants using typed constants and iota
 - [x] Create enum-like types for keys, colors, and styles
-- [x] Use consistent naming throughout (keeping current SCREAMING_SNAKE_CASE style)
-  - GO idiomatic would be PascalCase
-- [x] Constants and naming conventions are well-organized
 
-### 4. Function Organization and Interfaces
+**11. String and Byte Handling**
 
-- [ ] Define interfaces for terminal operations, file operations, and rendering
+- [x] Use strings.Builder for concatenation
+- [x] Implement proper Unicode support with runes
+- [x] Consistent string/byte usage
+
+### 🔄 In Progress / Next Steps
+
+**4. Function Organization and Interfaces** (Medium Priority)
+
+- [ ] Define interfaces for terminal operations, file operations, rendering
 - [ ] Convert package-level functions to methods on appropriate structs
-- [ ] Split monolithic file into multiple packages (terminal, editor, syntax, etc.)
-- [ ] Rename functions to follow Go conventions (editorReadKey → (e \*Editor) ReadKey)
+- [ ] Consider splitting into subpackages (terminal, renderer, syntax) if needed
+- [ ] Follow Go naming conventions for methods (methods on receivers)
 
-### 5. Memory Management and Slices
+**5. Memory Management and Slices** (Medium Priority)
 
 - [ ] Simplify complex slice operations with Go idioms
 - [ ] Use proper slice initialization patterns
-- [ ] Replace manual buffer management with strings.Builder or bytes.Buffer
-- [ ] Remove manual length tracking where Go handles it automatically
+- [ ] Review manual buffer management patterns
+- [ ] Remove manual length tracking where possible
 
-### 6. Type System Improvements
+**6. Type System Improvements** (Medium Priority)
 
-- [ ] Create proper types for keys, colors, and styles instead of using `int`
-- [ ] Implement enum-like types for syntax highlighting
-- [ ] Add methods to types like `editorRow` and `editorSyntax`
-- [ ] Review and optimize pointer vs value receivers
+- [ ] Consider typed constants for keys instead of raw `int`
+- [ ] Implement enum-like types for syntax highlighting rules
+- [ ] Add helper methods to `editorRow` and `editorSyntax` types
+- [ ] Review pointer vs value receiver patterns
 
-### 7. Concurrency and Channels
+### 📋 Future Work (Lower Priority)
 
-- [ ] Use goroutines and channels for non-blocking input handling
-- [ ] Make file saving operations non-blocking
-- [ ] Implement proper Go signal handling
-- [ ] Consider background operations for syntax highlighting
+**8. Configuration and Initialization** (Lower Priority)
 
-### 8. Configuration and Initialization
-
-- [ ] Create a proper configuration system
+- [ ] Create configuration file system (YAML/TOML)
 - [ ] Use builder pattern for complex initialization
-- [ ] Implement struct literal defaults
-- [ ] Add configuration validation
+- [ ] Add user configuration support
+- [ ] Configuration validation
 
-### 9. File I/O and Resource Management
+**9. File I/O and Resource Management** (Lower Priority)
 
-- [ ] Use more idiomatic file operations
-- [ ] Ensure proper resource cleanup with defer statements
+- [ ] Optimize file operations for large files
+- [ ] Ensure proper resource cleanup with defer
 - [ ] Add context support for cancellable operations
-- [ ] Consider using embed for built-in configurations
+- [ ] Consider using embed for built-in templates
 
-### 10. Testing and Testability
+**10. Testing and Testability** (Lower Priority)
 
-- [ ] Make code more testable through dependency injection
-- [ ] Create mockable interfaces
+- [ ] Enhance unit tests in editor_test.go
 - [ ] Implement table-driven tests
-- [ ] Add test helpers for common scenarios
+- [ ] Create test helpers for common scenarios
+- [ ] Add integration tests for editor workflows
 
-### 11. String and Byte Handling
-
-- [x] Use strings.Builder for string concatenation
-- [x] Ensure consistent string/byte usage
-- [x] Implement proper Unicode support
-- [x] Use more efficient string manipulation methods
-
-### 12. Syntax Highlighting Architecture
+**12. Syntax Highlighting Architecture** (Lower Priority)
 
 - [ ] Design extensible syntax highlighting system
-- [ ] Implement registry pattern for syntax definitions
-- [ ] Consider streaming approach for large files
-- [ ] Move towards structured syntax representation
+- [ ] Implement registry pattern for language definitions
+- [ ] Add more language support (Python, Rust, JavaScript, etc.)
+- [ ] Consider streaming approach for very large files
 
-## Priority Order
+**7. Concurrency and Channels** (Future Exploration)
 
-1. **High Priority**: Error handling, global state elimination, naming conventions
-2. **Medium Priority**: Function organization, type system improvements, configuration
-3. **Low Priority**: Concurrency, advanced architecture changes
+- [ ] Non-blocking input handling with goroutines
+- [ ] Background file saving operations
+- [ ] Proper signal handling
+- [ ] Background syntax highlighting
 
 ## Implementation Strategy
 
-- Start with simple changes (naming conventions, error handling)
-- Gradually eliminate global state
-- Refactor into proper Go packages
-- Add interfaces and improve testability
-- Implement advanced features (concurrency, plugins)
+1. **Current Focus**: Verify unicode-support branch completion
+2. **Next Phase**: Function organization and type system improvements (sections 4, 6)
+3. **Then**: Configuration system and testing improvements (sections 8, 10)
+4. **Future**: Concurrency features and advanced architecture (sections 7, 12)

@@ -147,4 +147,8 @@
   - cursor movement by word (ctrl+arrows)
   - word delete (ctrl+del/ctrl+backspace)
 - add function to tab key?
+  - indention (tab /shift+tab)
+  - navigation through parentheses
 - preserve indent on line break
+- auto close parantheses (in code)
+- undo/redo (ctrl+y, ctrl+z)

@@ -141,3 +141,10 @@
 - Line Count in status bar changes when opening Explorer
 - Add Line numbers to editor (toggleable)
 - allow combination of different text stylings instead of being limited to two
+- add more cursor navigation features
+  - selecting text (shift+arrows)
+  - copy (ctrl+c), paste already works?!
+  - cursor movement by word (ctrl+arrows)
+  - word delete (ctrl+del/ctrl+backspace)
+- add function to tab key?
+- preserve indent on line break

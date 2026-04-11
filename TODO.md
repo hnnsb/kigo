@@ -152,3 +152,16 @@
 - preserve indent on line break
 - auto close parantheses (in code)
 - undo/redo (ctrl+y, ctrl+z)
+- fix opening the same file twice
+  - different changes just overwrite each other
+  - add updating or warning that new changes are overwritten
+- add multi cursor support
+- [x] recreate shell history after close?
+  - currently it is erased and just the last editor windows can be scrolled to
+- open directory in kigo -> start in explorer
+  - when explorer is closed without selecting a file, create a new one at diretcory?
+- open multiple files and allow switching between them
+  - show tabs in status bar?
+- add code navigation tools, jump from symbol declaration to usage and vice versa
+- fuzzy search
+- diff viewer: show difference between changes and file

@@ -3,9 +3,11 @@ package editor
 // ANSI escape sequences for terminal control
 const (
 	// Screen control
-	CLEAR_SCREEN = "\x1b[2J" // Clear entire screen
-	CLEAR_LINE   = "\x1b[K"  // Clear line from cursor to end
-	CURSOR_HOME  = "\x1b[H"  // Move cursor to top-left (1,1)
+	CLEAR_SCREEN     = "\x1b[2J"     // Clear entire screen
+	CLEAR_LINE       = "\x1b[K"      // Clear line from cursor to end
+	CURSOR_HOME      = "\x1b[H"      // Move cursor to top-left (1,1)
+	ENTER_ALT_SCREEN = "\x1b[?1049h" // Switch to alternate screen buffer
+	EXIT_ALT_SCREEN  = "\x1b[?1049l" // Switch back to normal screen buffer
 
 	// Cursor visibility
 	CURSOR_HIDE = "\x1b[?25l" // Hide cursor

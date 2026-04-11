@@ -244,6 +244,8 @@ func (e *Editor) EnableRawMode() error {
 		return errors.New("not running in a terminal")
 	}
 
+	fmt.Print(ENTER_ALT_SCREEN) // enter alternate screen
+
 	var err error
 	e.terminal.originalState, err = term.MakeRaw(int(os.Stdin.Fd()))
 	if err != nil {
@@ -254,6 +256,8 @@ func (e *Editor) EnableRawMode() error {
 
 // Restore the original terminal state, disabling raw mode.
 func (e *Editor) RestoreTerminal() {
+	fmt.Print(EXIT_ALT_SCREEN) // leave alternate screen
+
 	if e.terminal != nil && e.terminal.originalState != nil {
 		term.Restore(int(os.Stdin.Fd()), e.terminal.originalState)
 		e.terminal.originalState = nil // Prevent multiple restoration attempts
@@ -1249,9 +1253,7 @@ func (e *Editor) ProcessKeypress() {
 			return
 		}
 		e.RestoreTerminal()
-		os.Stdout.Write([]byte(CLEAR_SCREEN))
-		os.Stdout.Write([]byte(CURSOR_HOME))
-		fmt.Println("Exiting KIGO editor")
+		fmt.Println("Exited KIGO editor")
 		os.Exit(0)
 
 	case withControlKey('s'):

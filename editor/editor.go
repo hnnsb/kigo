@@ -47,6 +47,33 @@ const (
 	END_KEY
 	PAGE_UP
 	PAGE_DOWN
+	CTRL_ARROW_LEFT
+	CTRL_ARROW_RIGHT
+	CTRL_ARROW_UP
+	CTRL_ARROW_DOWN
+	CTRL_DELETE
+	CTRL_HOME
+	CTRL_END
+	CTRL_PAGE_UP
+	CTRL_PAGE_DOWN
+	SHIFT_ARROW_LEFT
+	SHIFT_ARROW_RIGHT
+	SHIFT_ARROW_UP
+	SHIFT_ARROW_DOWN
+	SHIFT_DELETE
+	SHIFT_HOME
+	SHIFT_END
+	SHIFT_PAGE_UP
+	SHIFT_PAGE_DOWN
+	ALT_ARROW_LEFT
+	ALT_ARROW_RIGHT
+	ALT_ARROW_UP
+	ALT_ARROW_DOWN
+	ALT_DELETE
+	ALT_HOME
+	ALT_END
+	ALT_PAGE_UP
+	ALT_PAGE_DOWN
 )
 
 // Syntax highlighting types
@@ -268,7 +295,7 @@ func (e *Editor) RestoreTerminal() {
 	}
 }
 
-func readKey() (rune, error) {
+func (e *Editor) readKey() (rune, error) {
 	buf := make([]byte, 1)
 	n, err := os.Stdin.Read(buf)
 
@@ -280,7 +307,7 @@ func readKey() (rune, error) {
 
 	// Handle escape sequences (special keys)
 	if c == '\x1b' {
-		seq := make([]byte, 3)
+		seq := make([]byte, 5)
 		if n, err := os.Stdin.Read(seq[0:2]); n != 2 || err != nil {
 			return '\x1b', nil // Return escape if we can't read sequence
 		}
@@ -303,6 +330,64 @@ func readKey() (rune, error) {
 						return PAGE_UP, nil
 					case '6':
 						return PAGE_DOWN, nil
+					}
+				}
+				if seq[2] == ';' { // Handle modifier keys (e.g., Shift, Ctrl)
+					if n, err := os.Stdin.Read(seq[3:5]); n != 2 || err != nil {
+						return '\x1b', nil
+					}
+					//e.Debug("Modifier key sequence detected: %v - %s", seq, seq)
+					switch seq[3] {
+					case '2': // Shift
+						switch seq[4] {
+						case 'A':
+							return SHIFT_ARROW_UP, nil
+						case 'B':
+							return SHIFT_ARROW_DOWN, nil
+						case 'C':
+							return SHIFT_ARROW_RIGHT, nil
+						case 'D':
+							return SHIFT_ARROW_LEFT, nil
+						case 'H':
+							return SHIFT_HOME, nil
+						case 'F':
+							return SHIFT_END, nil
+						case '~':
+							switch seq[1] {
+							case '3':
+								return SHIFT_DELETE, nil
+							case '5':
+								return SHIFT_PAGE_UP, nil
+							case '6':
+								return SHIFT_PAGE_DOWN, nil
+							}
+						}
+					case '3': // Alt
+						return '\x1b', nil // For now, we will not handle alt+arrows differently
+					case '5': // Ctrl
+						switch seq[4] {
+						case 'A':
+							return CTRL_ARROW_UP, nil
+						case 'B':
+							return CTRL_ARROW_DOWN, nil
+						case 'C':
+							return CTRL_ARROW_RIGHT, nil
+						case 'D':
+							return CTRL_ARROW_LEFT, nil
+						case 'H':
+							return CTRL_HOME, nil
+						case 'F':
+							return CTRL_END, nil
+						case '~':
+							switch seq[1] {
+							case '3':
+								return CTRL_DELETE, nil
+							case '5':
+								return CTRL_PAGE_UP, nil
+							case '6':
+								return CTRL_PAGE_DOWN, nil
+							}
+						}
 					}
 				}
 			} else {
@@ -334,6 +419,7 @@ func readKey() (rune, error) {
 
 	// For ASCII characters, return directly
 	if c < 128 {
+		// e.Debug("Character %v - %c", c, c)
 		return rune(c), nil
 	}
 
@@ -1102,7 +1188,7 @@ func (e *Editor) Prompt(prompt string, callback func([]byte, int)) string {
 		e.SetStatusMessage(prompt, string(buf))
 		e.RefreshScreen()
 
-		key, err := readKey()
+		key, err := e.readKey()
 		if err != nil {
 			e.ShowError("%v", err)
 			continue // Try again instead of terminating
@@ -1189,6 +1275,25 @@ func (v *Viewport) MoveCursor(key int, totalRows int, rows []DisplayLine) {
 		if v.cy < totalRows {
 			v.cy++
 		}
+	case CTRL_ARROW_LEFT:
+		if row != nil {
+			for v.cx > 0 && isSeparator(int(row.chars[v.cx-1])) {
+				v.cx--
+			}
+			for v.cx > 0 && !isSeparator(int(row.chars[v.cx-1])) {
+				v.cx--
+			}
+		}
+	case CTRL_ARROW_RIGHT:
+		if row != nil {
+			rowlen := len(row.chars)
+			for v.cx < rowlen && isSeparator(int(row.chars[v.cx])) {
+				v.cx++
+			}
+			for v.cx < rowlen && !isSeparator(int(row.chars[v.cx])) {
+				v.cx++
+			}
+		}
 	}
 
 	if v.cy >= totalRows {
@@ -1212,7 +1317,7 @@ func (e *Editor) MoveCursor(key int) {
 var quitTimes = QUIT_TIMES
 
 func (e *Editor) ProcessKeypress() {
-	key, err := readKey()
+	key, err := e.readKey()
 	if err != nil {
 		e.ShowError("%v", err)
 		return // Skip this keypress and continue
@@ -1249,6 +1354,48 @@ func (e *Editor) ProcessKeypress() {
 	case ARROW_LEFT, ARROW_RIGHT, ARROW_UP, ARROW_DOWN:
 		e.MoveCursor(int(key))
 
+	case CTRL_ARROW_LEFT, CTRL_ARROW_RIGHT:
+		e.MoveCursor(int(key))
+
+	case CTRL_DELETE: // Forward Delete word
+		if e.cy < e.totalRows {
+			row := &e.row[e.cy]
+			if e.cx < len(row.chars) {
+				// Move to the end of the next word
+				for e.cx < len(row.chars) && !isSeparator(int(row.chars[e.cx])) {
+					e.cx++
+					e.DeleteChar()
+				}
+				for e.cx < len(row.chars) && isSeparator(int(row.chars[e.cx])) {
+					e.cx++
+					e.DeleteChar()
+				}
+			}
+		}
+
+	case withControlKey('h'): // Ctrl+Backspace - Delete previous word
+		if e.cy < e.totalRows {
+			row := &e.row[e.cy]
+			if e.cx > 0 {
+				// Move to the beginning of the previous word
+				for e.cx > 0 && isSeparator(int(row.chars[e.cx-1])) {
+					e.DeleteChar()
+				}
+				for e.cx > 0 && !isSeparator(int(row.chars[e.cx-1])) {
+					e.DeleteChar()
+				}
+			}
+		}
+
+	case SHIFT_DELETE: // Delete line
+		if e.cy < e.totalRows {
+			e.cx = 0
+			e.DeleteRow(e.cy)
+		}
+
+	case SHIFT_ARROW_LEFT, SHIFT_ARROW_RIGHT, SHIFT_ARROW_UP, SHIFT_ARROW_DOWN, SHIFT_HOME, SHIFT_END, SHIFT_PAGE_UP, SHIFT_PAGE_DOWN, CTRL_ARROW_UP, CTRL_ARROW_DOWN, CTRL_HOME, CTRL_END, CTRL_PAGE_UP, CTRL_PAGE_DOWN:
+	// Unsupported keys for now - just ignore them
+
 	// Control keys and special characters
 	case '\r': // Enter
 		e.InsertNewline()
@@ -1283,7 +1430,7 @@ func (e *Editor) ProcessKeypress() {
 	case withControlKey('r'):
 		e.Redraw()
 
-	case withControlKey('h'):
+	case withControlKey('t'):
 		e.Help()
 
 	default:

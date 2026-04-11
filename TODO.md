@@ -134,14 +134,16 @@
 - Make it possible to open Directories and start in Explorer View
   - when explorer is closed without selecting a file, create a new one at diretcory?
 - Line Count in status bar changes when opening Explorer
-- [X] Add Line numbers to editor (toggleable)
+- [x] Add Line numbers to editor (toggleable)
 - allow combination of different text stylings instead of being limited to two
-- add more cursor navigation features
+- [/] add more cursor navigation features
   - selecting text (shift+arrows)
   - copy (ctrl+c), paste already works?!
-  - cursor movement by word (ctrl+arrows)
-  - word delete (ctrl+del/ctrl+backspace)
-- add function to tab key?
+  - [X] cursor movement by word (ctrl+arrows)
+  - [X] word delete (ctrl+del/ctrl+backspace)
+  - [X] delete line
+- [/] add function to tab key?
+  - [X] Basic typing works
   - indention (tab/shift+tab)
   - navigation through parentheses
 - preserve indent on line break
@@ -160,3 +162,4 @@
 - diff viewer: show difference between changes and file
 - sort by dirs and files in preview
 - remove tilde in empty explorer lines "~"
+- git support, at least highlighting in file?

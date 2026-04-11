@@ -66,7 +66,7 @@ func (m *ModalManager) Show(mode int) {
 	for {
 		m.editor.RefreshScreen()
 
-		input, err := readKey()
+		input, err := m.editor.readKey()
 		if err != nil {
 			m.editor.ShowError("%v", err)
 			continue

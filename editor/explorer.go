@@ -85,11 +85,12 @@ func (ex *ExplorerScreen) selectionAtCursor(e *Editor) (selectedPath string, sel
 		return filepath.Dir(ex.currentDir), nil, true
 	}
 
-	if e.cy < ex.firstFileRowIndex() || e.cy >= len(ex.content) {
+	firstFileRow := ex.firstFileRowIndex()
+	if e.cy < firstFileRow {
 		return "", nil, false
 	}
 
-	fileIndex := e.cy - ex.firstFileRowIndex()
+	fileIndex := e.cy - firstFileRow
 	if fileIndex < 0 || fileIndex >= len(ex.files) {
 		return "", nil, false
 	}
@@ -537,7 +538,7 @@ func (ex *ExplorerScreen) handleExplorerNavigation(key int, e *Editor) {
 
 	switch key {
 	case ARROW_UP:
-		if e.cy > minCy-1 {
+		if e.cy > minCy {
 			e.cy--
 		}
 	case ARROW_DOWN:
@@ -608,6 +609,10 @@ func (ex *ExplorerScreen) openSelectedFile(e *Editor) bool {
 		e.ShowError("Failed to open file: %v", err)
 		return false
 	}
+
+	// When a file is opened from explorer we exit the modal without restoring
+	// previous state, so switch mode back to normal editing explicitly.
+	e.mode = EDIT_MODE
 
 	return true // File opened successfully
 }

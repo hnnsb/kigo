@@ -138,6 +138,7 @@
 # Issues
 
 - Make it possible to open Directories and start in Explorer View
+  - when explorer is closed without selecting a file, create a new one at diretcory?
 - Line Count in status bar changes when opening Explorer
 - Add Line numbers to editor (toggleable)
 - allow combination of different text stylings instead of being limited to two
@@ -146,8 +147,8 @@
   - copy (ctrl+c), paste already works?!
   - cursor movement by word (ctrl+arrows)
   - word delete (ctrl+del/ctrl+backspace)
-- [x] add function to tab key?
-  - indention (tab /shift+tab)
+- add function to tab key?
+  - indention (tab/shift+tab)
   - navigation through parentheses
 - preserve indent on line break
 - auto close parantheses (in code)
@@ -158,10 +159,10 @@
 - add multi cursor support
 - [x] recreate shell history after close?
   - currently it is erased and just the last editor windows can be scrolled to
-- open directory in kigo -> start in explorer
-  - when explorer is closed without selecting a file, create a new one at diretcory?
 - open multiple files and allow switching between them
   - show tabs in status bar?
 - add code navigation tools, jump from symbol declaration to usage and vice versa
 - fuzzy search
 - diff viewer: show difference between changes and file
+- sort by dirs and files in preview
+- remove tilde in empty explorer lines "~"

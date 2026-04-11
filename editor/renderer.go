@@ -3,6 +3,7 @@ package editor
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/mattn/go-runewidth"
@@ -39,7 +40,38 @@ func renderStartIndex(render []rune, offset int) int {
 	return len(render)
 }
 
-func appendDisplayLine(abuf *appendBuffer, line DisplayLine, startOffset int, maxWidth int, pad bool) {
+func lineNumberDigits(totalRows int) int {
+	rows := max(totalRows, 1)
+	return len(strconv.Itoa(rows))
+}
+
+func lineNumberLayout(availableCols int, totalRows int, enabled bool) (int, int) {
+	if !enabled || availableCols < 4 {
+		return 0, 0
+	}
+
+	digits := lineNumberDigits(totalRows)
+	prefixWidth := digits + 1 // "<num> "
+	if prefixWidth >= availableCols {
+		return 0, 0
+	}
+
+	return digits, prefixWidth
+}
+
+func lineNumbersEnabled(e *Editor) bool {
+	return e.showLineNumbers && e.mode != EXPLORER_MODE
+}
+
+func appendEmptyLineNumberPrefix(abuf *appendBuffer, digits int) {
+	abuf.append(fmt.Appendf(nil, "%*s ", digits, ""))
+}
+
+func appendDisplayLine(abuf *appendBuffer, line DisplayLine, startOffset int, maxWidth int, pad bool, lineNum int, lineNumDigits int) {
+	if lineNumDigits > 0 {
+		abuf.append(fmt.Appendf(nil, "\x1b[%dm%*d\x1b[%dm ", ANSI_COLOR_BLACK_INTENSE, lineNumDigits, lineNum, ANSI_COLOR_DEFAULT))
+	}
+
 	if maxWidth <= 0 {
 		return
 	}
@@ -56,7 +88,6 @@ func appendDisplayLine(abuf *appendBuffer, line DisplayLine, startOffset int, ma
 		if charWidth > 0 && visibleWidth+charWidth > maxWidth {
 			break
 		}
-
 		if h == HL_NORMAL {
 			if currentColor != -1 {
 				abuf.append(fmt.Appendf(nil, "\x1b[%dm", ANSI_COLOR_DEFAULT))
@@ -104,6 +135,7 @@ func appendDisplayLine(abuf *appendBuffer, line DisplayLine, startOffset int, ma
 		}
 	}
 
+	// Remember: Why pad here?
 	if pad {
 		for visibleWidth < maxWidth {
 			abuf.append([]byte(" "))
@@ -130,14 +162,51 @@ func appendPreviewLine(abuf *appendBuffer, text string, maxWidth int) {
 	}
 }
 
+func (r *ScreenRenderer) contentWidthForCurrentView(e *Editor) int {
+	availableCols := e.screenCols
+	if e.mode == EXPLORER_MODE && e.activeModal != nil {
+		if splitViewModal, ok := e.activeModal.(SplitViewModal); ok && splitViewModal.ShouldShowSplitView(e.screenCols) {
+			availableCols = e.screenCols / 2
+		}
+	}
+
+	_, prefixWidth := lineNumberLayout(availableCols, e.totalRows, lineNumbersEnabled(e))
+	contentWidth := availableCols - prefixWidth
+	if contentWidth < 1 {
+		return 1
+	}
+
+	return contentWidth
+}
+
+func (r *ScreenRenderer) cursorXOffset(e *Editor) int {
+	availableCols := e.screenCols
+	if e.mode == EXPLORER_MODE && e.activeModal != nil {
+		if splitViewModal, ok := e.activeModal.(SplitViewModal); ok && splitViewModal.ShouldShowSplitView(e.screenCols) {
+			availableCols = e.screenCols / 2
+		}
+	}
+
+	_, prefixWidth := lineNumberLayout(availableCols, e.totalRows, lineNumbersEnabled(e))
+	return prefixWidth
+}
+
 func (r *ScreenRenderer) drawEditorRows(e *Editor, abuf *appendBuffer) {
+	lineNumDigits, lineNumPrefixWidth := lineNumberLayout(e.screenCols, e.totalRows, lineNumbersEnabled(e))
+	contentWidth := e.screenCols - lineNumPrefixWidth
+
 	for y := range e.screenRows {
 		filerow := y + e.rowOffset
 		if filerow >= e.totalRows {
+			if lineNumDigits > 0 {
+				appendEmptyLineNumberPrefix(abuf, lineNumDigits)
+			}
+
 			if e.totalRows == 0 && y == e.screenRows/3 {
+				// Welcome Text
 				welcome := "KIGO editor -- version " + KIGO_VERSION
-				welcomelen := min(len(welcome), e.screenCols)
-				padding := (e.screenCols - welcomelen) / 2
+				welcomelen := min(len(welcome), max(contentWidth, 0))
+				padding := (max(contentWidth, 0) - welcomelen) / 2
 				if padding > 0 {
 					abuf.append([]byte("~"))
 					padding--
@@ -150,10 +219,10 @@ func (r *ScreenRenderer) drawEditorRows(e *Editor, abuf *appendBuffer) {
 				abuf.append([]byte("~"))
 			}
 		} else {
-			appendDisplayLine(abuf, e.row[filerow], e.colOffset, e.screenCols, true)
+			appendDisplayLine(abuf, e.row[filerow], e.colOffset, contentWidth, true, e.row[filerow].idx+1, lineNumDigits)
 		}
 		abuf.append([]byte(CLEAR_LINE))
-		abuf.append([]byte("\r\n"))
+		abuf.append([]byte("\r\n")) // TODO: Correct, or os specific line ending?
 	}
 }
 
@@ -177,14 +246,20 @@ func (r *ScreenRenderer) drawSplitViewRows(e *Editor, abuf *appendBuffer, splitM
 	}
 
 	_, rightPreview := splitModal.GetSplitViewContent(e, rightWidth, e.screenRows)
+	lineNumDigits, lineNumPrefixWidth := lineNumberLayout(leftWidth, e.totalRows, lineNumbersEnabled(e))
+	leftContentWidth := leftWidth - lineNumPrefixWidth
 
 	for y := range e.screenRows {
 		filerow := y + e.rowOffset
 		if filerow >= e.totalRows {
+			if lineNumDigits > 0 {
+				appendEmptyLineNumberPrefix(abuf, lineNumDigits)
+			}
+
 			if e.totalRows == 0 && y == e.screenRows/3 {
 				welcome := "KIGO editor -- version " + KIGO_VERSION
-				welcomelen := min(len(welcome), leftWidth)
-				padding := (leftWidth - welcomelen) / 2
+				welcomelen := min(len(welcome), max(leftContentWidth, 0))
+				padding := (max(leftContentWidth, 0) - welcomelen) / 2
 				if padding > 0 {
 					abuf.append([]byte("~"))
 					padding--
@@ -193,17 +268,17 @@ func (r *ScreenRenderer) drawSplitViewRows(e *Editor, abuf *appendBuffer, splitM
 					abuf.append([]byte(" "))
 				}
 				abuf.append([]byte(welcome[:welcomelen]))
-				for i := welcomelen + padding + 1; i < leftWidth; i++ {
+				for i := welcomelen + padding + 1; i < leftContentWidth; i++ {
 					abuf.append([]byte(" "))
 				}
 			} else {
 				abuf.append([]byte("~"))
-				for i := 1; i < leftWidth; i++ {
+				for i := 1; i < leftContentWidth; i++ {
 					abuf.append([]byte(" "))
 				}
 			}
 		} else {
-			appendDisplayLine(abuf, e.row[filerow], e.colOffset, leftWidth, true)
+			appendDisplayLine(abuf, e.row[filerow], e.colOffset, leftContentWidth, true, e.row[filerow].idx+1, lineNumDigits)
 		}
 
 		abuf.append([]byte("|"))
@@ -215,7 +290,7 @@ func (r *ScreenRenderer) drawSplitViewRows(e *Editor, abuf *appendBuffer, splitM
 			}
 		}
 		abuf.append([]byte(CLEAR_LINE))
-		abuf.append([]byte("\r\n"))
+		abuf.append([]byte("\r\n")) // TODO: Correct, or os specific line ending needed?
 	}
 }
 
@@ -283,7 +358,8 @@ func (r *ScreenRenderer) RefreshScreen(e *Editor) {
 	r.DrawStatusBar(e, &abuf)
 	r.DrawMessageBar(e, &abuf)
 
-	abuf.append(fmt.Appendf(nil, CURSOR_POSITION_FORMAT, e.cy-e.rowOffset+1, e.rx-e.colOffset+1))
+	cursorCol := e.rx - e.colOffset + r.cursorXOffset(e) + 1
+	abuf.append(fmt.Appendf(nil, CURSOR_POSITION_FORMAT, e.cy-e.rowOffset+1, cursorCol))
 	abuf.append([]byte(CURSOR_SHOW))
 
 	os.Stdout.Write(abuf.b)

@@ -24,6 +24,7 @@ const (
 	CONTROL_SEQUENCE_WIDTH = 2
 	QUIT_TIMES             = 2
 	MIN_SPLIT_PANE_WIDTH   = 24
+	DEFAULT_SHOW_LINE_NUMS = true
 )
 
 // getLineEnding returns the appropriate line ending for the current OS
@@ -175,6 +176,7 @@ type Editor struct {
 	Buffer
 	statusMessage     string
 	statusMessageTime time.Time
+	showLineNumbers   bool
 	mode              int
 	terminal          *Terminal
 	renderer          *ScreenRenderer
@@ -1028,10 +1030,14 @@ func (ab *appendBuffer) append(s []byte) {
 
 /*** output ***/
 
-func (v *Viewport) Scroll(totalRows int, rows []DisplayLine) {
+func (v *Viewport) Scroll(totalRows int, rows []DisplayLine, contentCols int) {
 	v.rx = 0
 	if v.cy < totalRows {
 		v.rx = rows[v.cy].cxToRx(v.cx)
+	}
+
+	if contentCols < 1 {
+		contentCols = 1
 	}
 
 	if v.cy < v.rowOffset {
@@ -1044,13 +1050,15 @@ func (v *Viewport) Scroll(totalRows int, rows []DisplayLine) {
 	if v.rx < v.colOffset {
 		v.colOffset = v.rx
 	}
-	if v.rx >= v.colOffset+v.screenCols {
-		v.colOffset = v.rx - v.screenCols + 1
+	if v.rx >= v.colOffset+contentCols {
+		v.colOffset = v.rx - contentCols + 1
 	}
 }
 
 func (e *Editor) Scroll() {
-	e.Viewport.Scroll(e.totalRows, e.row)
+	e.ensureRenderer()
+	contentCols := e.renderer.contentWidthForCurrentView(e)
+	e.Viewport.Scroll(e.totalRows, e.row, contentCols)
 }
 
 func (e *Editor) DrawRows(abuf *appendBuffer) {
@@ -1299,9 +1307,10 @@ func NewTerminal() *Terminal {
 // NewEditor creates a new Editor instance with proper initialization
 func NewEditor(logger *log.Logger) Editor {
 	return Editor{
-		logger:   logger,
-		terminal: NewTerminal(),
-		renderer: NewScreenRenderer(),
+		logger:          logger,
+		terminal:        NewTerminal(),
+		renderer:        NewScreenRenderer(),
+		showLineNumbers: DEFAULT_SHOW_LINE_NUMS,
 		searchState: SearchState{
 			lastMatch:   -1,
 			direction:   1,

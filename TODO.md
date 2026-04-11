@@ -146,7 +146,7 @@
   - copy (ctrl+c), paste already works?!
   - cursor movement by word (ctrl+arrows)
   - word delete (ctrl+del/ctrl+backspace)
-- add function to tab key?
+- [x] add function to tab key?
   - indention (tab /shift+tab)
   - navigation through parentheses
 - preserve indent on line break

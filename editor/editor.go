@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"runtime"
 	"slices"
@@ -169,6 +170,7 @@ type Terminal struct {
 
 // Editor represents the text editor state
 type Editor struct {
+	logger *log.Logger
 	Viewport
 	Buffer
 	statusMessage     string
@@ -1242,6 +1244,11 @@ func (e *Editor) ProcessKeypress() {
 	// Control keys and special characters
 	case '\r': // Enter
 		e.InsertNewline()
+	case '\t':
+		// TODO: Better Tab behavior:
+		// - indent current line, outdent on shift+tab
+		// - dependant on file type (for code indent outdent behavior, for text add character at cursor)
+		e.InsertRune('\t')
 
 	case '\x1b': // Escape key
 		// Do nothing - just reset quit times
@@ -1290,8 +1297,9 @@ func NewTerminal() *Terminal {
 }
 
 // NewEditor creates a new Editor instance with proper initialization
-func NewEditor() Editor {
+func NewEditor(logger *log.Logger) Editor {
 	return Editor{
+		logger:   logger,
 		terminal: NewTerminal(),
 		renderer: NewScreenRenderer(),
 		searchState: SearchState{
@@ -1332,4 +1340,10 @@ func (e *Editor) resetFindState() {
 	e.searchState.direction = 1
 	e.searchState.savedHlLine = -1
 	e.searchState.savedHl = nil
+}
+
+func (e *Editor) Debug(format string, args ...any) {
+	if e.logger != nil {
+		e.logger.Printf("[DEBUG] "+format, args...)
+	}
 }

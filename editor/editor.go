@@ -217,7 +217,7 @@ var HLDB_ENTRIES = []editorSyntax{
 	{
 		filetype:               "markdown",
 		filematch:              []string{".md", ".markdown"},
-		keywords:               [][]string{{"#"}, {"-", "*", "+"}},
+		keywords:               [][]string{{"#", "[X]", "[x]", "[ ]"}, {"-", "*", "+"}},
 		singlelineCommentStart: "#",
 		multilineCommentStart:  "/*",
 		multilineCommentEnd:    "*/",

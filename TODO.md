@@ -2,12 +2,6 @@
 
 ## Known Issues & Bug Fixes
 
-### Current (fix/unicode-support branch)
-
-- [ ] Verify Unicode character width calculations in modal content
-- [ ] Test cursor positioning with multi-byte characters (emoji, CJK)
-- [ ] Ensure file explorer displays Unicode filenames correctly
-
 ### General Bugs
 
 - No critical bugs reported currently
@@ -140,7 +134,7 @@
 - Make it possible to open Directories and start in Explorer View
   - when explorer is closed without selecting a file, create a new one at diretcory?
 - Line Count in status bar changes when opening Explorer
-- Add Line numbers to editor (toggleable)
+- [X] Add Line numbers to editor (toggleable)
 - allow combination of different text stylings instead of being limited to two
 - add more cursor navigation features
   - selecting text (shift+arrows)

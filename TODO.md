@@ -147,7 +147,7 @@
   - [x] Basic typing
   - indention (tab/shift+tab)
   - navigation through parentheses
-- preserve indent on line break
+- [x] preserve indent on line break
 - auto close parantheses (in code)
 - undo/redo (ctrl+y, ctrl+z)
 - fix opening the same file twice

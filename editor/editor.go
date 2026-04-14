@@ -423,7 +423,7 @@ func (e *Editor) readKey() (rune, error) {
 
 	// For ASCII characters, return directly
 	if c < 128 {
-		// e.Debug("Character %v - %c", c, c)
+		e.Debug("Read character %v - %c", c, c)
 		return rune(c), nil
 	}
 
@@ -873,15 +873,24 @@ func (e *Editor) InsertRune(r rune) {
 }
 
 func (b *Buffer) InsertNewline(e *Editor, v *Viewport) {
+	currentRow := &b.row[v.cy]
+	currentIndentationRunes := []rune("")
+	for _, char := range currentRow.chars {
+		if char == ' ' || char == '\t' {
+			currentIndentationRunes = append(currentIndentationRunes, char)
+		} else {
+			break
+		}
+	}
+
 	if v.cx == 0 {
-		b.InsertRow(e, v.cy, []rune(""), 0)
+		b.InsertRow(e, v.cy, currentIndentationRunes, len(currentIndentationRunes))
 	} else {
 		row := &b.row[v.cy]
 
 		// Insert new row with text from cursor to end of line
-		remainingText := make([]rune, len(row.chars)-v.cx)
-		copy(remainingText, row.chars[v.cx:])
-		b.InsertRow(e, v.cy+1, remainingText, len(row.chars)-v.cx)
+		currentIndentationRunes = append(currentIndentationRunes, row.chars[v.cx:]...)
+		b.InsertRow(e, v.cy+1, currentIndentationRunes, len(currentIndentationRunes))
 
 		// Truncate current row to text before cursor
 		row = &b.row[v.cy]
@@ -1453,6 +1462,11 @@ func (e *Editor) ProcessKeypress() {
 	// Control keys and special characters
 	case '\r': // Enter
 		e.InsertNewline()
+		for _, char := range e.row[e.cy].chars {
+			if char == ' ' || char == '\t' {
+				e.cx++
+			}
+		}
 	case '\t':
 		// TODO: Better Tab behavior:
 		// - indent current line, outdent on shift+tab

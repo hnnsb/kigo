@@ -138,6 +138,7 @@
 - allow combination of different text stylings instead of being limited to two
 - [/] add more cursor navigation features
   - selecting text (shift+arrows)
+    - select word (ctrl+shift+arrows)
   - copy (ctrl+c), paste already works?!
   - [X] cursor movement by word (ctrl+arrows)
   - [X] word delete (ctrl+del/ctrl+backspace)
@@ -153,6 +154,7 @@
   - different changes just overwrite each other
   - add updating or warning that new changes are overwritten
 - add multi cursor support
+  - to create cursors: (ctrl+alt+arrows)
 - [x] recreate shell history after close?
   - currently it is erased and just the last editor windows can be scrolled to
 - open multiple files and allow switching between them
@@ -163,3 +165,8 @@
 - sort by dirs and files in preview
 - remove tilde in empty explorer lines "~"
 - git support, at least highlighting in file?
+- Save Position in file when opening/closing files
+- toggle ins-mode?
+- Find/Replace Mode
+- Parenthese Highlighting to show in which parenthese the cursor is.
+- scrolling in explorer hides header whenn list exceeds height, and header cannot reappear.

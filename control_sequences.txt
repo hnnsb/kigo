@@ -1,0 +1,19 @@
+Shift + :
+del		[3;2~
+pgup	[5;2~
+pgdn	[6;2~
+home	[1;2H
+end		[1;2F
+ins		Paste
+UP		[1;2A
+DOWN	[1;2B
+RIGHT	[1;2C
+LEFT	[1;2D
+
+
+[	1		;	2			D
+				Mod Key
+				Shift: 2
+				Ctrl: 5
+				Alt: 3
+				Alt+Shift: 7

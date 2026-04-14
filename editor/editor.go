@@ -244,7 +244,7 @@ var HLDB_ENTRIES = []editorSyntax{
 	{
 		filetype:               "markdown",
 		filematch:              []string{".md", ".markdown"},
-		keywords:               [][]string{{"#", "[X]", "[x]", "[ ]"}, {"-", "*", "+"}},
+		keywords:               [][]string{{"#", "[X]", "[x]", "[ ]", ""}, {"-", "*", "+", "**"}},
 		singlelineCommentStart: "#",
 		multilineCommentStart:  "/*",
 		multilineCommentEnd:    "*/",
@@ -336,7 +336,7 @@ func (e *Editor) readKey() (rune, error) {
 					if n, err := os.Stdin.Read(seq[3:5]); n != 2 || err != nil {
 						return '\x1b', nil
 					}
-					//e.Debug("Modifier key sequence detected: %v - %s", seq, seq)
+					e.Debug("Modifier key sequence detected: %v - %s", seq, seq)
 					switch seq[3] {
 					case '2': // Shift
 						switch seq[4] {
@@ -388,6 +388,10 @@ func (e *Editor) readKey() (rune, error) {
 								return CTRL_PAGE_DOWN, nil
 							}
 						}
+					case '6': // Ctrl+Shift
+						return '\x1b', nil
+					case '7': // Ctrl+Alt
+						return '\x1b', nil
 					}
 				}
 			} else {
@@ -1144,7 +1148,57 @@ func (v *Viewport) Scroll(totalRows int, rows []DisplayLine, contentCols int) {
 func (e *Editor) Scroll() {
 	e.ensureRenderer()
 	contentCols := e.renderer.contentWidthForCurrentView(e)
+	if e.mode == EXPLORER_MODE {
+		e.scrollExplorerWithPinnedRows(contentCols)
+		return
+	}
 	e.Viewport.Scroll(e.totalRows, e.row, contentCols)
+}
+
+func (e *Editor) scrollExplorerWithPinnedRows(contentCols int) {
+	e.rx = 0
+	if e.cy < e.totalRows {
+		e.rx = e.row[e.cy].cxToRx(e.cx)
+	}
+
+	if contentCols < 1 {
+		contentCols = 1
+	}
+
+	if e.rx < e.colOffset {
+		e.colOffset = e.rx
+	}
+	if e.rx >= e.colOffset+contentCols {
+		e.colOffset = e.rx - contentCols + 1
+	}
+
+	if e.screenRows <= explorerPinnedRows {
+		e.rowOffset = 0
+		return
+	}
+
+	firstScrollableRow := explorerPinnedRows
+	visibleScrollableRows := max(e.screenRows-explorerPinnedRows, 1)
+
+	if e.rowOffset < firstScrollableRow {
+		e.rowOffset = firstScrollableRow
+	}
+
+	if e.cy < firstScrollableRow {
+		e.rowOffset = firstScrollableRow
+	} else {
+		if e.cy < e.rowOffset {
+			e.rowOffset = e.cy
+		}
+		if e.cy >= e.rowOffset+visibleScrollableRows {
+			e.rowOffset = e.cy - visibleScrollableRows + 1
+		}
+	}
+
+	maxRowOffset := max(e.totalRows-visibleScrollableRows, firstScrollableRow)
+	if e.rowOffset > maxRowOffset {
+		e.rowOffset = maxRowOffset
+	}
 }
 
 func (e *Editor) DrawRows(abuf *appendBuffer) {

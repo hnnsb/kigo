@@ -140,11 +140,11 @@
   - selecting text (shift+arrows)
     - select word (ctrl+shift+arrows)
   - copy (ctrl+c), paste already works?!
-  - [X] cursor movement by word (ctrl+arrows)
-  - [X] word delete (ctrl+del/ctrl+backspace)
-  - [X] delete line
+  - [x] cursor movement by word (ctrl+arrows)
+  - [x] word delete (ctrl+del/ctrl+backspace)
+  - [x] delete line
 - [/] add function to tab key?
-  - [X] Basic typing works
+  - [x] Basic typing
   - indention (tab/shift+tab)
   - navigation through parentheses
 - preserve indent on line break
@@ -163,10 +163,10 @@
 - fuzzy search
 - diff viewer: show difference between changes and file
 - sort by dirs and files in preview
-- remove tilde in empty explorer lines "~"
+- [x] remove tilde in empty explorer lines "~"
 - git support, at least highlighting in file?
 - Save Position in file when opening/closing files
 - toggle ins-mode?
 - Find/Replace Mode
 - Parenthese Highlighting to show in which parenthese the cursor is.
-- scrolling in explorer hides header whenn list exceeds height, and header cannot reappear.
+- [x] scrolling in explorer hides header whenn list exceeds height, and header cannot reappear.

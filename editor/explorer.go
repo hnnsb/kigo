@@ -15,6 +15,7 @@ const (
 	previewPaneMinWidth     = 24
 	previewReadByteLimit    = 64 * 1024
 	binarySampleSize        = 512
+	explorerPinnedRows      = 2
 )
 
 // EditorState represents the saved state of the editor

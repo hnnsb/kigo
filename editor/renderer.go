@@ -197,6 +197,9 @@ func (r *ScreenRenderer) drawEditorRows(e *Editor, abuf *appendBuffer) {
 
 	for y := range e.screenRows {
 		filerow := y + e.rowOffset
+		if e.mode == EXPLORER_MODE {
+			filerow = explorerFileRowForScreenRow(y, e.rowOffset)
+		}
 		if filerow >= e.totalRows {
 			if lineNumDigits > 0 {
 				appendEmptyLineNumberPrefix(abuf, lineNumDigits)
@@ -216,7 +219,9 @@ func (r *ScreenRenderer) drawEditorRows(e *Editor, abuf *appendBuffer) {
 				}
 				abuf.append([]byte(welcome[:welcomelen]))
 			} else {
-				abuf.append([]byte("~"))
+				if e.mode != EXPLORER_MODE {
+					abuf.append([]byte("~"))
+				}
 			}
 		} else {
 			appendDisplayLine(abuf, e.row[filerow], e.colOffset, contentWidth, true, e.row[filerow].idx+1, lineNumDigits)
@@ -251,6 +256,9 @@ func (r *ScreenRenderer) drawSplitViewRows(e *Editor, abuf *appendBuffer, splitM
 
 	for y := range e.screenRows {
 		filerow := y + e.rowOffset
+		if e.mode == EXPLORER_MODE {
+			filerow = explorerFileRowForScreenRow(y, e.rowOffset)
+		}
 		if filerow >= e.totalRows {
 			if lineNumDigits > 0 {
 				appendEmptyLineNumberPrefix(abuf, lineNumDigits)
@@ -261,7 +269,7 @@ func (r *ScreenRenderer) drawSplitViewRows(e *Editor, abuf *appendBuffer, splitM
 				welcomelen := min(len(welcome), max(leftContentWidth, 0))
 				padding := (max(leftContentWidth, 0) - welcomelen) / 2
 				if padding > 0 {
-					abuf.append([]byte("~"))
+					abuf.append([]byte(" "))
 					padding--
 				}
 				for range padding {
@@ -272,7 +280,7 @@ func (r *ScreenRenderer) drawSplitViewRows(e *Editor, abuf *appendBuffer, splitM
 					abuf.append([]byte(" "))
 				}
 			} else {
-				abuf.append([]byte("~"))
+				abuf.append([]byte(" "))
 				for i := 1; i < leftContentWidth; i++ {
 					abuf.append([]byte(" "))
 				}
@@ -359,8 +367,32 @@ func (r *ScreenRenderer) RefreshScreen(e *Editor) {
 	r.DrawMessageBar(e, &abuf)
 
 	cursorCol := e.rx - e.colOffset + r.cursorXOffset(e) + 1
-	abuf.append(fmt.Appendf(nil, CURSOR_POSITION_FORMAT, e.cy-e.rowOffset+1, cursorCol))
+	cursorRow := cursorScreenRow(e)
+	abuf.append(fmt.Appendf(nil, CURSOR_POSITION_FORMAT, cursorRow, cursorCol))
 	abuf.append([]byte(CURSOR_SHOW))
 
 	os.Stdout.Write(abuf.b)
+}
+
+func explorerFileRowForScreenRow(screenRow int, rowOffset int) int {
+	if screenRow < explorerPinnedRows {
+		return screenRow
+	}
+	return rowOffset + (screenRow - explorerPinnedRows)
+}
+
+func cursorScreenRow(e *Editor) int {
+	if e.mode == EXPLORER_MODE {
+		if e.cy < explorerPinnedRows {
+			return e.cy + 1
+		}
+		if e.screenRows <= explorerPinnedRows {
+			return 1
+		}
+		if e.rowOffset < explorerPinnedRows {
+			return e.cy + 1
+		}
+		return explorerPinnedRows + (e.cy-e.rowOffset) + 1
+	}
+	return e.cy - e.rowOffset + 1
 }

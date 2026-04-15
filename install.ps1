@@ -1,6 +1,6 @@
 $ErrorActionPreference = "Stop"
 
-$Repo = "yourname/kigo"
+$Repo = "hnnsb/kigo"
 $Binary = "kigo"
 $InstallDir = "$env:LOCALAPPDATA\Programs\kigo"
 

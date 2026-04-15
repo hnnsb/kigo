@@ -330,10 +330,17 @@ func (r *ScreenRenderer) DrawStatusBar(e *Editor, abuf *appendBuffer) {
 	if e.syntax != nil {
 		filetype = e.syntax.filetype
 	}
-	rstatus = fmt.Sprintf("%s | %d/%d", filetype, e.cy+1, e.totalRows)
-	rstatusLen := len(rstatus)
+
+	switch e.mode {
+	case EXPLORER_MODE:
+		rstatus = fmt.Sprintf("| %d/%d", e.cy-2, len(e.activeModal.(*ExplorerScreen).files))
+	default:
+		rstatus = fmt.Sprintf("%s | %d/%d", filetype, e.cy+1, e.totalRows)
+	}
+
 	abuf.append([]byte(status[:statusLen]))
 
+	rstatusLen := len(rstatus)
 	for statusLen < e.screenCols {
 		if e.screenCols-statusLen == rstatusLen {
 			abuf.append([]byte(rstatus))
@@ -392,7 +399,7 @@ func cursorScreenRow(e *Editor) int {
 		if e.rowOffset < explorerPinnedRows {
 			return e.cy + 1
 		}
-		return explorerPinnedRows + (e.cy-e.rowOffset) + 1
+		return explorerPinnedRows + (e.cy - e.rowOffset) + 1
 	}
 	return e.cy - e.rowOffset + 1
 }

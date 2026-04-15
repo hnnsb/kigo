@@ -36,9 +36,21 @@ func main() {
 	editor.SetStatusMessage("HELP: Ctrl-S = save | Ctrl-Q = quit | Ctrl-F = find")
 
 	if len(args) >= 1 {
-		err = editor.Open(args[0])
-		if err != nil {
-			editor.ShowError("%v", err)
+		editor.Debug("Processing startup argument: %q", args[0])
+		startupFile, startupDir, startupErr := classifyStartupPath(args[0])
+		if startupErr != nil {
+			editor.ShowError("%v", startupErr)
+
+		} else if startupDir != "" {
+			editor.Debug("Opening directory: %q", startupDir)
+			editor.ExplorerAt(startupDir)
+
+		} else if startupFile != "" {
+			editor.Debug("Opening file: %q", startupFile)
+			err = editor.Open(startupFile)
+			if err != nil {
+				editor.ShowError("%v", err)
+			}
 		}
 	}
 
@@ -46,6 +58,28 @@ func main() {
 		editor.RefreshScreen()
 		editor.ProcessKeypress()
 	}
+}
+
+func classifyStartupPath(arg string) (filePath string, dirPath string, err error) {
+	cleanArg := filepath.Clean(arg)
+	info, statErr := os.Stat(cleanArg)
+	if statErr == nil {
+		if info.IsDir() {
+			absDir, absErr := filepath.Abs(cleanArg)
+			if absErr != nil {
+				return "", "", fmt.Errorf("failed to resolve directory path: %w", absErr)
+			}
+			return "", absDir, nil
+		}
+		return cleanArg, "", nil
+	}
+
+	if os.IsNotExist(statErr) {
+		// Missing path is treated as a file target, matching existing behavior.
+		return cleanArg, "", nil
+	}
+
+	return "", "", fmt.Errorf("failed to access path %q: %w", cleanArg, statErr)
 }
 
 func getLogFile(appName string) (*os.File, error) {

@@ -664,7 +664,12 @@ func (e *Editor) explorerStartDir() string {
 
 // Explorer opens the file explorer interface using the modal system
 func (e *Editor) Explorer() {
-	explorerScreen := NewExplorerScreen(e, e.explorerStartDir())
+	e.ExplorerAt(e.explorerStartDir())
+}
+
+// ExplorerAt opens the file explorer at an explicit start directory.
+func (e *Editor) ExplorerAt(startDir string) {
+	explorerScreen := NewExplorerScreen(e, startDir)
 	if explorerScreen == nil {
 		return // Error already shown
 	}

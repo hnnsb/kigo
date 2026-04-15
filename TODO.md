@@ -131,8 +131,8 @@
 
 # Issues
 
-- Make it possible to open Directories and start in Explorer View
-  - when explorer is closed without selecting a file, create a new one at diretcory?
+- [x] Make it possible to open Directories and start in Explorer View
+  - [x] when explorer is closed without selecting a file, create a new one at diretcory?
 - Line Count in status bar changes when opening Explorer
 - [x] Add Line numbers to editor (toggleable)
 - allow combination of different text stylings instead of being limited to two

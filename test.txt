@@ -1,7 +1,0 @@
-abcd
-
-öäpü
-⏎⏎5C5C5D5D5A5A5B5B⏎
-
-
-Eine sehr lange Zeile um Scrollverhalten zu testen: löaksdfj alöskdjf löaskdj flöaksd faklösjd flöaksd jflökasj dfklöjasdklfj asklödjf löasdkjf alöskd jflaöskdjfaklösjdf klöasdf klöasdf lsköajdf klöjs 

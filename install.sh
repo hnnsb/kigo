@@ -29,7 +29,7 @@ case "$OS" in
     ;;
 esac
 
-FILE="${BINARY}-${OS}-${ARCH}.tar.gz"
+FILE="${BINARY}_${OS}_${ARCH}.tar.gz"
 URL="https://github.com/${REPO}/releases/latest/download/${FILE}"
 
 TMP_DIR="$(mktemp -d)"

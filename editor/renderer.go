@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/hnnsb/kigo/internal/version"
 	"github.com/mattn/go-runewidth"
 )
 
@@ -207,7 +208,7 @@ func (r *ScreenRenderer) drawEditorRows(e *Editor, abuf *appendBuffer) {
 
 			if e.totalRows == 0 && y == e.screenRows/3 {
 				// Welcome Text
-				welcome := "KIGO editor -- version " + KIGO_VERSION
+				welcome := "KIGO editor -- version " + version.Version
 				welcomelen := min(len(welcome), max(contentWidth, 0))
 				padding := (max(contentWidth, 0) - welcomelen) / 2
 				if padding > 0 {
@@ -265,7 +266,7 @@ func (r *ScreenRenderer) drawSplitViewRows(e *Editor, abuf *appendBuffer, splitM
 			}
 
 			if e.totalRows == 0 && y == e.screenRows/3 {
-				welcome := "KIGO editor -- version " + KIGO_VERSION
+				welcome := "KIGO editor -- version " + version.Version
 				welcomelen := min(len(welcome), max(leftContentWidth, 0))
 				padding := (max(leftContentWidth, 0) - welcomelen) / 2
 				if padding > 0 {

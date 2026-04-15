@@ -19,7 +19,6 @@ import (
 
 // Config Constants
 const (
-	KIGO_VERSION           = "1.0.0"
 	TAB_STOP               = 4
 	CONTROL_SEQUENCE_WIDTH = 2
 	QUIT_TIMES             = 2

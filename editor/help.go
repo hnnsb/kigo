@@ -1,6 +1,10 @@
 package editor
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/hnnsb/kigo/internal/version"
+)
 
 // HelpScreen implements the ModalScreen interface for the help display
 type HelpScreen struct {
@@ -35,7 +39,7 @@ func NewHelpScreen(editor *Editor) *HelpScreen {
 		"  Ctrl+R           - Redraw screen",
 		"",
 		"About KIGO:",
-		fmt.Sprintf("  Version: %s", KIGO_VERSION),
+		fmt.Sprintf("  Version: %s (%s) (%s)", version.Version, version.Commit, version.Date),
 		"  A simple terminal-based text editor written in Go",
 		"",
 		"Press 'q' or Escape to close this help screen.",

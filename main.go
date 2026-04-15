@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/hnnsb/kigo/editor"
+	"github.com/hnnsb/kigo/internal/version"
 )
 
 func main() {
@@ -32,7 +33,7 @@ func main() {
 		editor.Die("initializing editor: %s", err.Error())
 	}
 
-	editor.Debug("Editor initialized successfully")
+	editor.Debug("Kigo-%s initialized successfully", version.Version)
 	editor.SetStatusMessage("HELP: Ctrl-S = save | Ctrl-Q = quit | Ctrl-F = find")
 
 	if len(args) >= 1 {

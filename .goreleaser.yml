@@ -1,0 +1,43 @@
+version: 2
+
+project_name: kigo
+
+builds:
+  - id: kigo
+    binary: kigo
+    main: .
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w 
+      - -X github.com/hnnsb/kigo/internal/version.Version={{.Version}}
+      - -X github.com/hnnsb/kigo/internal/version.Commit={{.Commit}}
+      - -X github.com/hnnsb/kigo/internal/version.Date={{.Date}}
+
+
+archives:
+  - format: tar.gz
+    name_template: >- 
+      {{ .ProjectName }}_{{ .Os }}_{{ .Arch }}
+    files:
+      - LICENSE*
+      - README*
+
+checksum:
+  name_template: checksums.txt
+
+
+release:
+  github:
+    owner: hnnsb
+    name: "{{ .ProjectName }}"
+
+changelog:
+  use: github

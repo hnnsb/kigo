@@ -69,6 +69,11 @@ func (ex *ExplorerScreen) rowIndexForFile(index int) int {
 	return ex.firstFileRowIndex() + index
 }
 
+func hasParentDirectory(path string) bool {
+	cleanPath := filepath.Clean(path)
+	return cleanPath != filepath.Dir(cleanPath)
+}
+
 func (ex *ExplorerScreen) setExplorerContent(e *Editor) {
 	e.row = ex.content
 	e.totalRows = len(ex.content)
@@ -79,6 +84,38 @@ func (ex *ExplorerScreen) setExplorerContent(e *Editor) {
 func (ex *ExplorerScreen) setCursorToFirstFile(e *Editor) {
 	e.cy = ex.firstFileRowIndex()
 	ex.setExplorerContent(e)
+}
+
+func (ex *ExplorerScreen) setCursorToFileByName(e *Editor, fileName string) bool {
+	for i, entry := range ex.files {
+		if entry.Name() == fileName {
+			e.cy = ex.rowIndexForFile(i)
+			ex.setExplorerContent(e)
+			return true
+		}
+	}
+	return false
+}
+
+func (ex *ExplorerScreen) navigateToParentDirectory(e *Editor) bool {
+	if !ex.hasParentDir {
+		return false
+	}
+
+	previousDirName := filepath.Base(ex.currentDir)
+	ex.moveToParentDirectory()
+
+	err := ex.refreshContent()
+	if err != nil {
+		e.ShowError("Failed to read directory: %v", err)
+		return false
+	}
+
+	if !ex.setCursorToFileByName(e, previousDirName) {
+		ex.setCursorToFirstFile(e)
+	}
+
+	return true
 }
 
 func (ex *ExplorerScreen) selectionAtCursor(e *Editor) (selectedPath string, selectedEntry os.DirEntry, hasSelection bool) {
@@ -111,11 +148,17 @@ type ExplorerScreen struct {
 
 // NewExplorerScreen creates a new explorer screen
 func NewExplorerScreen(editor *Editor, startDir string) *ExplorerScreen {
+	absStartDir, err := filepath.Abs(startDir)
+	if err != nil {
+		editor.ShowError("Failed to resolve directory path: %v", err)
+		return nil
+	}
+
 	explorer := &ExplorerScreen{
-		currentDir: startDir,
+		currentDir: absStartDir,
 		editor:     editor,
 	}
-	err := explorer.refreshContent()
+	err = explorer.refreshContent()
 	if err != nil {
 		editor.ShowError("Failed to read directory: %v", err)
 		return nil
@@ -143,7 +186,7 @@ func (ex *ExplorerScreen) refreshContent() error {
 	}
 
 	ex.files = files
-	ex.hasParentDir = ex.currentDir != "." && ex.currentDir != "/"
+	ex.hasParentDir = hasParentDirectory(ex.currentDir)
 
 	// Create content rows
 	ex.content = ex.createExplorerRows(files, ex.currentDir)
@@ -483,7 +526,9 @@ func fitPreviewLine(s string, width int) string {
 }
 
 func (ex *ExplorerScreen) moveToParentDirectory() {
-	ex.currentDir = filepath.Dir(ex.currentDir)
+	if hasParentDirectory(ex.currentDir) {
+		ex.currentDir = filepath.Dir(ex.currentDir)
+	}
 }
 
 // Initialize sets up the initial cursor position for the explorer
@@ -504,18 +549,10 @@ func (ex *ExplorerScreen) HandleKey(key int, e *Editor) (bool, bool) {
 		ex.highlightSelectedFile(e)
 
 	case ARROW_LEFT: // Go to parent directory
-		if ex.hasParentDir {
-			ex.moveToParentDirectory()
-			err := ex.refreshContent()
-			if err != nil {
-				e.ShowError("Failed to read directory: %v", err)
-				return false, false
-			}
-			ex.setCursorToFirstFile(e)
-		}
+		ex.navigateToParentDirectory(e)
 
 	case '\r', ARROW_RIGHT: // Enter key
-		opened := ex.openSelectedFile(e)
+		opened, directoryChanged := ex.openSelectedFile(e)
 		if opened {
 			return true, false // Close modal but keep new file state (don't restore)
 		}
@@ -525,7 +562,9 @@ func (ex *ExplorerScreen) HandleKey(key int, e *Editor) (bool, bool) {
 			return false, false
 		}
 
-		ex.setCursorToFirstFile(e)
+		if !directoryChanged {
+			ex.setCursorToFirstFile(e)
+		}
 	}
 	ex.highlightSelectedFile(e)
 
@@ -572,20 +611,17 @@ func (ex *ExplorerScreen) highlightSelectedFile(e *Editor) {
 }
 
 // openSelectedFile attempts to open the currently selected file or navigate to directory
-func (ex *ExplorerScreen) openSelectedFile(e *Editor) bool {
+func (ex *ExplorerScreen) openSelectedFile(e *Editor) (bool, bool) {
 	selectedPath, selectedEntry, hasSelection := ex.selectionAtCursor(e)
 	if !hasSelection {
-		return false
+		return false, false
 	}
 
 	if selectedEntry == nil {
-		ex.moveToParentDirectory()
-		err := ex.refreshContent()
-		if err != nil {
-			e.ShowError("Failed to read directory: %v", err)
-			return false
+		if ex.navigateToParentDirectory(e) {
+			return false, true
 		}
-		return false // Directory changed, don't close explorer
+		return false, false
 	}
 
 	if selectedEntry.IsDir() {
@@ -594,33 +630,41 @@ func (ex *ExplorerScreen) openSelectedFile(e *Editor) bool {
 		err := ex.refreshContent()
 		if err != nil {
 			e.ShowError("Failed to read directory: %v", err)
-			return false
+			return false, false
 		}
-		return false // Directory changed, don't close explorer
+		ex.setCursorToFirstFile(e)
+		return false, true // Directory changed, don't close explorer
 	}
 
 	if e.dirty > 0 {
 		e.SetStatusMessage("File has unsaved changes")
-		return false
+		return false, false
 	}
 
 	// Open regular file
 	err := e.Open(selectedPath)
 	if err != nil {
 		e.ShowError("Failed to open file: %v", err)
-		return false
+		return false, false
 	}
 
 	// When a file is opened from explorer we exit the modal without restoring
 	// previous state, so switch mode back to normal editing explicitly.
 	e.mode = EDIT_MODE
 
-	return true // File opened successfully
+	return true, false // File opened successfully
+}
+
+func (e *Editor) explorerStartDir() string {
+	if e.filename == "" {
+		return "."
+	}
+	return filepath.Dir(e.filename)
 }
 
 // Explorer opens the file explorer interface using the modal system
 func (e *Editor) Explorer() {
-	explorerScreen := NewExplorerScreen(e, ".")
+	explorerScreen := NewExplorerScreen(e, e.explorerStartDir())
 	if explorerScreen == nil {
 		return // Error already shown
 	}

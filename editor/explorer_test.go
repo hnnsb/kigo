@@ -162,3 +162,127 @@ func TestSanitizePreviewText(t *testing.T) {
 		t.Fatalf("control characters should be replaced with bullet, got: %q", result)
 	}
 }
+
+func TestNewExplorerScreenFromDotAllowsParentNavigation(t *testing.T) {
+	tmpDir := t.TempDir()
+	nestedDir := filepath.Join(tmpDir, "child")
+	if err := os.Mkdir(nestedDir, 0755); err != nil {
+		t.Fatalf("failed to create nested directory: %v", err)
+	}
+
+	oldWd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get current working directory: %v", err)
+	}
+	defer func() {
+		if chdirErr := os.Chdir(oldWd); chdirErr != nil {
+			t.Fatalf("failed to restore working directory: %v", chdirErr)
+		}
+	}()
+
+	if err := os.Chdir(nestedDir); err != nil {
+		t.Fatalf("failed to switch to nested directory: %v", err)
+	}
+
+	e := &Editor{}
+	ex := NewExplorerScreen(e, ".")
+	if ex == nil {
+		t.Fatalf("expected explorer to initialize")
+	}
+
+	if filepath.Clean(ex.currentDir) != filepath.Clean(nestedDir) {
+		t.Fatalf("expected currentDir %q, got %q", nestedDir, ex.currentDir)
+	}
+
+	if !ex.hasParentDir {
+		t.Fatalf("expected parent directory to be available for nested path")
+	}
+}
+
+func TestExplorerStartDirUsesCurrentFileDirectory(t *testing.T) {
+	e := &Editor{}
+	e.filename = filepath.Join("project", "subdir", "file.txt")
+
+	got := e.explorerStartDir()
+	want := filepath.Join("project", "subdir")
+	if filepath.Clean(got) != filepath.Clean(want) {
+		t.Fatalf("expected %q, got %q", want, got)
+	}
+}
+
+func TestExplorerStartDirFallsBackToDotWithoutFile(t *testing.T) {
+	e := &Editor{}
+
+	if got := e.explorerStartDir(); got != "." {
+		t.Fatalf("expected fallback dir '.', got %q", got)
+	}
+}
+
+func TestNavigateUpSelectsPreviouslySelectedDirectoryWithLeftArrow(t *testing.T) {
+	parentDir := t.TempDir()
+	childDir := filepath.Join(parentDir, "child")
+	if err := os.Mkdir(childDir, 0755); err != nil {
+		t.Fatalf("failed to create child directory: %v", err)
+	}
+
+	e := &Editor{}
+	ex := NewExplorerScreen(e, childDir)
+	if ex == nil {
+		t.Fatalf("expected explorer to initialize")
+	}
+
+	ex.Initialize(e)
+	ex.HandleKey(ARROW_LEFT, e)
+
+	if filepath.Clean(ex.currentDir) != filepath.Clean(parentDir) {
+		t.Fatalf("expected currentDir %q, got %q", parentDir, ex.currentDir)
+	}
+
+	selectedPath, selectedEntry, hasSelection := ex.selectionAtCursor(e)
+	if !hasSelection || selectedEntry == nil {
+		t.Fatalf("expected a selected directory entry after navigating up")
+	}
+
+	if selectedEntry.Name() != filepath.Base(childDir) {
+		t.Fatalf("expected selected entry %q, got %q", filepath.Base(childDir), selectedEntry.Name())
+	}
+
+	if filepath.Clean(selectedPath) != filepath.Clean(childDir) {
+		t.Fatalf("expected selected path %q, got %q", childDir, selectedPath)
+	}
+}
+
+func TestNavigateUpSelectsPreviouslySelectedDirectoryWithParentEntry(t *testing.T) {
+	parentDir := t.TempDir()
+	childDir := filepath.Join(parentDir, "child")
+	if err := os.Mkdir(childDir, 0755); err != nil {
+		t.Fatalf("failed to create child directory: %v", err)
+	}
+
+	e := &Editor{}
+	ex := NewExplorerScreen(e, childDir)
+	if ex == nil {
+		t.Fatalf("expected explorer to initialize")
+	}
+
+	ex.Initialize(e)
+	e.cy = ex.parentRowIndex()
+	ex.HandleKey('\r', e)
+
+	if filepath.Clean(ex.currentDir) != filepath.Clean(parentDir) {
+		t.Fatalf("expected currentDir %q, got %q", parentDir, ex.currentDir)
+	}
+
+	selectedPath, selectedEntry, hasSelection := ex.selectionAtCursor(e)
+	if !hasSelection || selectedEntry == nil {
+		t.Fatalf("expected a selected directory entry after navigating up")
+	}
+
+	if selectedEntry.Name() != filepath.Base(childDir) {
+		t.Fatalf("expected selected entry %q, got %q", filepath.Base(childDir), selectedEntry.Name())
+	}
+
+	if filepath.Clean(selectedPath) != filepath.Clean(childDir) {
+		t.Fatalf("expected selected path %q, got %q", childDir, selectedPath)
+	}
+}

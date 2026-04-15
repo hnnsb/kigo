@@ -12,3 +12,6 @@ Live read log file
 ```PowerShell
 Get-Content .\debug.log -Wait
 ```
+```Bash
+tail debug.log -f
+```

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -23,6 +24,8 @@ func main() {
 		case "-v", "--version":
 			printVersion()
 			return
+		case "--update":
+			update()
 		}
 	}
 
@@ -80,6 +83,14 @@ func printVersion() {
 
 func printHelp() {
 	fmt.Printf("Usage: kigo [file_or_directory]\n\n")
+}
+
+func update() {
+	fmt.Println("Checking for updates...")
+	cmd := exec.Command("sh", "-c", "curl -sL https://github.com/hnnsb/kigo/install.sh | bash")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Run()
 }
 
 func classifyStartupPath(arg string) (filePath string, dirPath string, err error) {

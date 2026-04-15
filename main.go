@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/hnnsb/kigo/editor"
@@ -12,6 +13,19 @@ import (
 )
 
 func main() {
+	args := os.Args[1:]
+
+	if len(args) >= 1 && strings.HasPrefix(args[0], "-") {
+		switch args[0] {
+		case "-h", "--help":
+			printHelp()
+			return
+		case "-v", "--version":
+			printVersion()
+			return
+		}
+	}
+
 	logFile, err := getLogFile("kigo")
 	if err != nil {
 		panic(err)
@@ -21,7 +35,6 @@ func main() {
 	logger := log.New(logFile, "", log.LstdFlags)
 
 	editor := editor.NewEditor(logger)
-	args := os.Args[1:]
 	err = editor.EnableRawMode()
 	if err != nil {
 		editor.Die("enabling raw mode: %s", err.Error())
@@ -59,6 +72,14 @@ func main() {
 		editor.RefreshScreen()
 		editor.ProcessKeypress()
 	}
+}
+
+func printVersion() {
+	fmt.Printf("KIGO editor version %s (commit %s, built at %s)\n", version.Version, version.Commit, version.Date)
+}
+
+func printHelp() {
+	fmt.Printf("Usage: kigo [file_or_directory]\n\n")
 }
 
 func classifyStartupPath(arg string) (filePath string, dirPath string, err error) {

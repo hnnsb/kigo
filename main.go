@@ -82,7 +82,21 @@ func printVersion() {
 }
 
 func printHelp() {
-	fmt.Printf("Usage: kigo [file_or_directory]\n\n")
+	helpLines := []string{
+		"Usage: kigo [file_or_directory]",
+		"",
+		"A simple terminal-based text editor written in Go.",
+		"",
+		"Options:",
+		"  -h, --help       Show this help message",
+		"  -v, --version    Show version information",
+		"  --update         Check for updates and install the latest version",
+		"",
+		"Examples:",
+		"  kigo                # Open editor with no file",
+		"  kigo myfile.txt     # Open or create myfile.txt",
+		"  kigo mydirectory/   # Open file explorer at mydirectory/"}
+	fmt.Print(strings.Join(helpLines, "\n"))
 }
 
 func update() {

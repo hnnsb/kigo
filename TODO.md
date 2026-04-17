@@ -170,3 +170,5 @@
 - Find/Replace Mode
 - Parenthese Highlighting to show in which parenthese the cursor is.
 - [x] scrolling in explorer hides header whenn list exceeds height, and header cannot reappear.
+- [x] move line / lines (ctrl+alt+arrows)
+  - Alt+arrows is uses by powershell in split-screen

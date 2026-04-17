@@ -73,6 +73,8 @@ const (
 	ALT_END
 	ALT_PAGE_UP
 	ALT_PAGE_DOWN
+	CTRL_ALT_ARROW_UP
+	CTRL_ALT_ARROW_DOWN
 )
 
 // Syntax highlighting types
@@ -390,7 +392,12 @@ func (e *Editor) readKey() (rune, error) {
 					case '6': // Ctrl+Shift
 						return '\x1b', nil
 					case '7': // Ctrl+Alt
-						return '\x1b', nil
+						switch seq[4] {
+						case 'A':
+							return CTRL_ALT_ARROW_UP, nil
+						case 'B':
+							return CTRL_ALT_ARROW_DOWN, nil
+						}
 					}
 				}
 			} else {
@@ -1457,6 +1464,22 @@ func (e *Editor) ProcessKeypress() {
 
 	case SHIFT_ARROW_LEFT, SHIFT_ARROW_RIGHT, SHIFT_ARROW_UP, SHIFT_ARROW_DOWN, SHIFT_HOME, SHIFT_END, SHIFT_PAGE_UP, SHIFT_PAGE_DOWN, CTRL_ARROW_UP, CTRL_ARROW_DOWN, CTRL_HOME, CTRL_END, CTRL_PAGE_UP, CTRL_PAGE_DOWN:
 	// Unsupported keys for now - just ignore them
+
+	case CTRL_ALT_ARROW_DOWN: // Move line down
+		if e.cy < e.totalRows-1 {
+			e.row[e.cy], e.row[e.cy+1] = e.row[e.cy+1], e.row[e.cy]
+			e.row[e.cy].idx = e.cy
+			e.row[e.cy+1].idx = e.cy + 1
+			e.cy++
+		}
+
+	case CTRL_ALT_ARROW_UP: // Move line up
+		if e.cy > 0 {
+			e.row[e.cy], e.row[e.cy-1] = e.row[e.cy-1], e.row[e.cy]
+			e.row[e.cy].idx = e.cy
+			e.row[e.cy-1].idx = e.cy - 1
+			e.cy--
+		}
 
 	// Control keys and special characters
 	case '\r': // Enter

@@ -3,6 +3,7 @@ package editor
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 
@@ -314,7 +315,7 @@ func (r *ScreenRenderer) DrawStatusBar(e *Editor, abuf *appendBuffer) {
 	var rstatus string
 	filename := "[No Name]"
 	if e.filename != "" {
-		filename = e.filename
+		filename = filepath.Base(e.filename)
 		if len(filename) > 20 {
 			filename = filename[:20]
 		}
@@ -356,7 +357,7 @@ func (r *ScreenRenderer) DrawStatusBar(e *Editor, abuf *appendBuffer) {
 	}
 
 	abuf.append([]byte(COLORS_RESET))
-	abuf.append([]byte("\r\n"))
+	abuf.append([]byte("\r\n")) // TODO: Correct, or os specific line ending?
 }
 
 func (r *ScreenRenderer) DrawMessageBar(e *Editor, abuf *appendBuffer) {

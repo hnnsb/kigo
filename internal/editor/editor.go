@@ -941,15 +941,8 @@ func (e *Editor) DeleteChar() {
 }
 
 func (e *Editor) RefreshScreen() {
-	e.ensureRenderer()
 	e.Scroll()
 	e.renderer.RefreshScreen(e)
-}
-
-func (e *Editor) ensureRenderer() {
-	if e.renderer == nil {
-		e.renderer = NewScreenRenderer()
-	}
 }
 
 func (e *Editor) SetStatusMessage(format string, args ...any) {

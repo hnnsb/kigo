@@ -263,6 +263,10 @@ func (r *ScreenRenderer) drawSplitViewRows(e *Editor, rightPreview []string, lef
 			} else {
 				if e.mode != EXPLORER_MODE {
 					abuf.append([]byte("~"))
+				} else {
+					for range max(leftContentWidth, 0) {
+						abuf.append([]byte(" "))
+					}
 				}
 			}
 		} else {

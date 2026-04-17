@@ -26,7 +26,6 @@ func (v *Viewport) Scroll(totalRows int, rows []DisplayLine, contentCols int) {
 }
 
 func (e *Editor) Scroll() {
-	e.ensureRenderer()
 	contentCols := e.renderer.contentWidthForCurrentView(e)
 	if e.mode == EXPLORER_MODE {
 		e.scrollExplorerWithPinnedRows(contentCols)

@@ -154,7 +154,7 @@
   - different changes just overwrite each other
   - add updating or warning that new changes are overwritten
 - add multi cursor support
-  - to create cursors: (ctrl+alt+arrows)
+  - to create cursors: (ctrl+alt+arrows! already used for line moving)
 - [x] recreate shell history after close?
   - currently it is erased and just the last editor windows can be scrolled to
 - open multiple files and allow switching between them

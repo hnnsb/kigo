@@ -68,9 +68,13 @@ func appendEmptyLineNumberPrefix(abuf *appendBuffer, digits int) {
 	abuf.append(fmt.Appendf(nil, "%*s ", digits, ""))
 }
 
-func appendDisplayLine(abuf *appendBuffer, line DisplayLine, startOffset int, maxWidth int, pad bool, lineNum int, lineNumDigits int) {
+func appendDisplayLine(abuf *appendBuffer, line DisplayLine, startOffset int, maxWidth int, pad bool, lineNum int, lineNumDigits int, e *Editor) {
 	if lineNumDigits > 0 {
-		abuf.append(fmt.Appendf(nil, "\x1b[%dm%*d\x1b[%dm ", ANSI_COLOR_BLACK_INTENSE, lineNumDigits, lineNum, ANSI_COLOR_DEFAULT))
+		color := ANSI_COLOR_BLACK_INTENSE
+		if line.idx == e.cy {
+			color = ANSI_COLOR_DEFAULT
+		}
+		abuf.append(fmt.Appendf(nil, "\x1b[%dm%*d\x1b[%dm ", color, lineNumDigits, lineNum, ANSI_COLOR_DEFAULT))
 	}
 
 	if maxWidth <= 0 {
@@ -225,7 +229,7 @@ func (r *ScreenRenderer) drawEditorRows(e *Editor, abuf *appendBuffer) {
 				}
 			}
 		} else {
-			appendDisplayLine(abuf, e.row[filerow], e.colOffset, contentWidth, true, e.row[filerow].idx+1, lineNumDigits)
+			appendDisplayLine(abuf, e.row[filerow], e.colOffset, contentWidth, true, e.row[filerow].idx+1, lineNumDigits, e)
 		}
 		abuf.append([]byte(CLEAR_LINE))
 		abuf.append([]byte("\r\n")) // TODO: Correct, or os specific line ending?
@@ -287,7 +291,7 @@ func (r *ScreenRenderer) drawSplitViewRows(e *Editor, abuf *appendBuffer, splitM
 				}
 			}
 		} else {
-			appendDisplayLine(abuf, e.row[filerow], e.colOffset, leftContentWidth, true, e.row[filerow].idx+1, lineNumDigits)
+			appendDisplayLine(abuf, e.row[filerow], e.colOffset, leftContentWidth, true, e.row[filerow].idx+1, lineNumDigits, e)
 		}
 
 		abuf.append([]byte("|"))

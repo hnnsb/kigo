@@ -98,6 +98,11 @@ const (
 	HL_HIGHLIGHT_STRINGS = 1 << 1
 )
 
+// Config flags
+const (
+	CFG_ADD_NEWLINE_ON_PARENTHESES = 1 << 0
+)
+
 // Editor modes
 const (
 	EDIT_MODE = iota
@@ -155,7 +160,10 @@ type editorSyntax struct {
 	singlelineCommentStart string
 	multilineCommentStart  string
 	multilineCommentEnd    string
-	flags                  int
+	indentationChar        rune
+	indentationSize        int
+	hlFlags                int
+	cfgFlags               int
 }
 
 type DisplayLine struct {
@@ -226,7 +234,10 @@ var HLDB_ENTRIES = []editorSyntax{
 		singlelineCommentStart: "//",
 		multilineCommentStart:  "/*",
 		multilineCommentEnd:    "*/",
-		flags:                  HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS,
+		indentationChar:        ' ',
+		indentationSize:        4,
+		hlFlags:                HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS,
+		cfgFlags:               0,
 	},
 	{
 		filetype:  "go",
@@ -240,7 +251,10 @@ var HLDB_ENTRIES = []editorSyntax{
 		singlelineCommentStart: "//",
 		multilineCommentStart:  "/*",
 		multilineCommentEnd:    "*/",
-		flags:                  HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS,
+		indentationChar:        '\t',
+		indentationSize:        1,
+		hlFlags:                HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS,
+		cfgFlags:               CFG_ADD_NEWLINE_ON_PARENTHESES,
 	},
 	{
 		filetype:               "markdown",
@@ -249,6 +263,10 @@ var HLDB_ENTRIES = []editorSyntax{
 		singlelineCommentStart: "#",
 		multilineCommentStart:  "/*",
 		multilineCommentEnd:    "*/",
+		indentationChar:        ' ',
+		indentationSize:        2,
+		hlFlags:                HL_HIGHLIGHT_NUMBERS,
+		cfgFlags:               0,
 	},
 }
 
@@ -579,7 +597,7 @@ func (row *DisplayLine) UpdateSyntax(e *Editor) {
 			}
 		}
 
-		if e.syntax.flags&HL_HIGHLIGHT_STRINGS != 0 {
+		if e.syntax.hlFlags&HL_HIGHLIGHT_STRINGS != 0 {
 			if inString != 0 {
 				row.hl[i] = HL_STRING
 				if c == '\\' && i+1 < len(row.render) {
@@ -603,7 +621,7 @@ func (row *DisplayLine) UpdateSyntax(e *Editor) {
 			}
 		}
 
-		if e.syntax.flags&HL_HIGHLIGHT_NUMBERS != 0 {
+		if e.syntax.hlFlags&HL_HIGHLIGHT_NUMBERS != 0 {
 			if (isDigit(c) && (prevSep || prevHl == HL_NUMBER)) || (c == '.' && prevHl == HL_NUMBER) {
 				row.hl[i] = HL_NUMBER
 				i++
@@ -1483,12 +1501,30 @@ func (e *Editor) ProcessKeypress() {
 
 	// Control keys and special characters
 	case '\r': // Enter
+		row := &e.row[e.cy]
+
+		indentLine := e.cx < len(row.chars) && slices.Contains([]rune{')', '}', ']'}, row.chars[e.cx])
 		e.InsertNewline()
-		for _, char := range e.row[e.cy].chars {
+		for _, char := range row.chars {
 			if char == ' ' || char == '\t' {
 				e.cx++
+			} else {
+				break
 			}
 		}
+
+		if e.syntax != nil && e.syntax.cfgFlags&CFG_ADD_NEWLINE_ON_PARENTHESES != 0 {
+			if indentLine {
+				e.InsertNewline()
+				e.MoveCursor(ARROW_LEFT)
+				for range e.syntax.indentationSize {
+					e.InsertRune(e.syntax.indentationChar)
+					e.RefreshScreen()
+
+				}
+			}
+		}
+
 	case '\t':
 		// TODO: Better Tab behavior:
 		// - indent current line, outdent on shift+tab
@@ -1522,6 +1558,61 @@ func (e *Editor) ProcessKeypress() {
 
 	case withControlKey('t'):
 		e.Help()
+
+	case '(':
+		e.InsertRune('(')
+		e.InsertRune(')')
+		e.MoveCursor(ARROW_LEFT)
+
+	case ')':
+		if e.cy < e.totalRows {
+			row := &e.row[e.cy]
+			if e.cx < len(row.chars) && row.chars[e.cx] == ')' {
+				e.MoveCursor(ARROW_RIGHT)
+			} else {
+				e.InsertRune(')')
+			}
+		}
+
+	case '{':
+		e.InsertRune('{')
+		e.InsertRune('}')
+		e.MoveCursor(ARROW_LEFT)
+
+	case '}':
+		if e.cy < e.totalRows {
+			row := &e.row[e.cy]
+			if e.cx < len(row.chars) && row.chars[e.cx] == '}' {
+				e.MoveCursor(ARROW_RIGHT)
+			} else {
+				e.InsertRune('}')
+			}
+		}
+
+	case '[':
+		e.InsertRune('[')
+		e.InsertRune(']')
+		e.MoveCursor(ARROW_LEFT)
+
+	case ']':
+		if e.cy < e.totalRows {
+			row := &e.row[e.cy]
+			if e.cx < len(row.chars) && row.chars[e.cx] == ']' {
+				e.MoveCursor(ARROW_RIGHT)
+			} else {
+				e.InsertRune(']')
+			}
+		}
+
+	case '"':
+		e.InsertRune('"')
+		e.InsertRune('"')
+		e.MoveCursor(ARROW_LEFT)
+
+	case '\'':
+		e.InsertRune('\'')
+		e.InsertRune('\'')
+		e.MoveCursor(ARROW_LEFT)
 
 	default:
 		// Insert regular character (including Unicode)

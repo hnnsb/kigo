@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -25,13 +26,18 @@ func main() {
 			printVersion()
 			return
 		case "--update":
-			update()
+			if err := update(); err != nil {
+				fmt.Fprintf(os.Stderr, "Update failed: %v\n", err)
+				os.Exit(1)
+			}
+			return
 		}
 	}
 
 	logFile, err := getLogFile("kigo")
 	if err != nil {
-		panic(err)
+		fmt.Fprintf(os.Stderr, "Failed to initialize log file: %v\n", err)
+		os.Exit(1)
 	}
 	defer logFile.Close()
 
@@ -99,12 +105,23 @@ func printHelp() {
 	fmt.Print(strings.Join(helpLines, "\n"))
 }
 
-func update() {
+func update() error {
 	fmt.Println("Checking for updates...")
-	cmd := exec.Command("sh", "-c", "curl -sL https://github.com/hnnsb/kigo/install.sh | bash")
+
+	var cmd *exec.Cmd
+	if runtime.GOOS == "windows" {
+		cmd = exec.Command("powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", "iwr https://raw.githubusercontent.com/hnnsb/kigo/main/install.ps1 -UseBasicParsing | iex")
+	} else {
+		cmd = exec.Command("sh", "-c", "curl -sL https://raw.githubusercontent.com/hnnsb/kigo/main/install.sh | bash")
+	}
+
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	cmd.Run()
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("running update script: %w", err)
+	}
+
+	return nil
 }
 
 func classifyStartupPath(arg string) (filePath string, dirPath string, err error) {

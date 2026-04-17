@@ -31,11 +31,11 @@ func (e *Editor) RowsToString() ([]byte, int) {
 	return e.Buffer.RowsToString()
 }
 
-func (b *Buffer) Open(e *Editor, filename string) error {
+func (b *Buffer) Open(filename string) error {
 	b.filename = filename
 	file, err := os.Open(filename)
 	if err != nil {
-		return fmt.Errorf("could not open file '%s'", filename)
+		return fmt.Errorf("opening file %q: %w", filename, err)
 	}
 	defer file.Close()
 
@@ -57,7 +57,7 @@ func (b *Buffer) Open(e *Editor, filename string) error {
 	}
 
 	if err := scanner.Err(); err != nil {
-		e.Die("reading file: " + err.Error())
+		return fmt.Errorf("reading file %q: %w", filename, err)
 	}
 	b.dirty = 0
 	return nil
@@ -70,7 +70,7 @@ func (e *Editor) Open(filename string) error {
 	e.colOffset = 0
 	e.rx = 0
 	e.resetFindState()
-	return e.Buffer.Open(e, filename)
+	return e.Buffer.Open(filename)
 }
 
 func (b *Buffer) SaveToFile() (int, error) {
@@ -78,18 +78,18 @@ func (b *Buffer) SaveToFile() (int, error) {
 
 	file, err := os.OpenFile(b.filename, os.O_RDWR|os.O_CREATE, 0644)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("opening file %q for write: %w", b.filename, err)
 	}
 	defer file.Close()
 
 	err = file.Truncate(int64(length))
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("truncating file %q: %w", b.filename, err)
 	}
 
 	bytesWritten, err := file.Write(buf)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("writing file %q: %w", b.filename, err)
 	}
 
 	if bytesWritten != length {

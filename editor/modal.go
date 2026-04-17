@@ -60,7 +60,7 @@ type SplitViewModal interface {
 type ModalManager struct {
 	savedState EditorState
 	screen     ModalScreen
-	host       ModalHost
+	editor     *Editor
 }
 
 // creates a new modal manager
@@ -68,7 +68,7 @@ func NewModalManager(editor *Editor, screen ModalScreen) *ModalManager {
 	return &ModalManager{
 		savedState: editor.getEditorState(),
 		screen:     screen,
-		host:       editor,
+		editor:     editor,
 	}
 }
 
@@ -78,22 +78,21 @@ func (m *ModalManager) Show(mode int) {
 	m.setupModalDisplay(content, mode)
 
 	// Store the active modal so split-view modals can be rendered properly
-	editor := m.host.(*Editor)
-	editor.activeModal = m.screen
+	m.editor.activeModal = m.screen
 	defer func() {
-		editor.activeModal = nil
+		m.editor.activeModal = nil
 	}()
 
 	// Let the screen initialize itself (e.g., set cursor position)
-	m.screen.Initialize(m.host)
+	m.screen.Initialize(m.editor)
 
 	// Main interaction loop
 	for {
-		editor.RefreshScreen()
+		m.editor.RefreshScreen()
 
-		input, err := editor.readKey()
+		input, err := m.editor.readKey()
 		if err != nil {
-			editor.ShowError("%v", err)
+			m.editor.ShowError("%v", err)
 			continue
 		}
 
@@ -101,7 +100,7 @@ func (m *ModalManager) Show(mode int) {
 		// TODO : Can i just convert to int?
 		key := int(input)
 
-		shouldClose, shouldRestore := m.screen.HandleKey(key, m.host)
+		shouldClose, shouldRestore := m.screen.HandleKey(key, m.editor)
 		if shouldClose {
 			if shouldRestore {
 				m.restoreState()
@@ -113,19 +112,18 @@ func (m *ModalManager) Show(mode int) {
 
 // configures the editor for modal display
 func (m *ModalManager) setupModalDisplay(content []DisplayLine, mode int) {
-	m.host.SetMode(mode)
-	m.host.SetRows(content)
-	m.host.SetTotalRows(len(content))
-	m.host.SetCx(0)
-	m.host.SetCy(0)
-	m.host.SetColOffset(0)
-	m.host.SetRowOffset(0)
-	m.host.SetStatusMessage("%s", m.screen.GetStatusMessage())
+	m.editor.SetMode(mode)
+	m.editor.SetRows(content)
+	m.editor.SetTotalRows(len(content))
+	m.editor.SetCx(0)
+	m.editor.SetCy(0)
+	m.editor.SetColOffset(0)
+	m.editor.SetRowOffset(0)
+	m.editor.SetStatusMessage("%s", m.screen.GetStatusMessage())
 }
 
 // restores the editor to its previous state
 func (m *ModalManager) restoreState() {
-	editor := m.host.(*Editor)
-	editor.setEditorState(m.savedState)
-	editor.SetStatusMessage("Returned to editor")
+	m.editor.setEditorState(m.savedState)
+	m.editor.SetStatusMessage("Returned to editor")
 }

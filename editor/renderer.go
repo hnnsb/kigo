@@ -14,6 +14,16 @@ import (
 // ScreenRenderer is responsible for drawing editor state to the terminal.
 type ScreenRenderer struct{}
 
+type appendBuffer struct {
+	b   []byte
+	len int
+}
+
+func (ab *appendBuffer) append(s []byte) {
+	ab.b = append(ab.b, s...)
+	ab.len += len(s)
+}
+
 func NewScreenRenderer() *ScreenRenderer {
 	return &ScreenRenderer{}
 }
@@ -61,18 +71,18 @@ func lineNumberLayout(availableCols int, totalRows int, enabled bool) (int, int)
 	return digits, prefixWidth
 }
 
-func lineNumbersEnabled(e *Editor) bool {
-	return e.showLineNumbers && e.mode != EXPLORER_MODE
+func lineNumbersEnabled(showLineNumbers bool, mode int) bool {
+	return showLineNumbers && mode != EXPLORER_MODE
 }
 
 func appendEmptyLineNumberPrefix(abuf *appendBuffer, digits int) {
 	abuf.append(fmt.Appendf(nil, "%*s ", digits, ""))
 }
 
-func appendDisplayLine(abuf *appendBuffer, line DisplayLine, startOffset int, maxWidth int, pad bool, lineNum int, lineNumDigits int, e *Editor) {
+func appendDisplayLine(abuf *appendBuffer, line DisplayLine, startOffset int, maxWidth int, pad bool, lineNum int, lineNumDigits int, cursorRow int) {
 	if lineNumDigits > 0 {
 		color := ANSI_COLOR_BLACK_INTENSE
-		if line.idx == e.cy {
+		if line.idx == cursorRow {
 			color = ANSI_COLOR_DEFAULT
 		}
 		abuf.append(fmt.Appendf(nil, "\x1b[%dm%*d\x1b[%dm ", color, lineNumDigits, lineNum, ANSI_COLOR_DEFAULT))
@@ -141,7 +151,6 @@ func appendDisplayLine(abuf *appendBuffer, line DisplayLine, startOffset int, ma
 		}
 	}
 
-	// Remember: Why pad here?
 	if pad {
 		for visibleWidth < maxWidth {
 			abuf.append([]byte(" "))
@@ -168,43 +177,19 @@ func appendPreviewLine(abuf *appendBuffer, text string, maxWidth int) {
 	}
 }
 
-func (r *ScreenRenderer) contentWidthForCurrentView(e *Editor) int {
-	availableCols := e.screenCols
-	if e.mode == EXPLORER_MODE && e.activeModal != nil {
-		if splitViewModal, ok := e.activeModal.(SplitViewModal); ok && splitViewModal.ShouldShowSplitView(e.screenCols) {
-			availableCols = e.screenCols / 2
-		}
-	}
-
-	_, prefixWidth := lineNumberLayout(availableCols, e.totalRows, lineNumbersEnabled(e))
-	contentWidth := availableCols - prefixWidth
-	if contentWidth < 1 {
-		return 1
-	}
-
-	return contentWidth
-}
-
-func (r *ScreenRenderer) cursorXOffset(e *Editor) int {
-	availableCols := e.screenCols
-	if e.mode == EXPLORER_MODE && e.activeModal != nil {
-		if splitViewModal, ok := e.activeModal.(SplitViewModal); ok && splitViewModal.ShouldShowSplitView(e.screenCols) {
-			availableCols = e.screenCols / 2
-		}
-	}
-
-	_, prefixWidth := lineNumberLayout(availableCols, e.totalRows, lineNumbersEnabled(e))
+func (r *ScreenRenderer) cursorXOffset(e *Editor, availableCols int) int {
+	_, prefixWidth := lineNumberLayout(availableCols, e.totalRows, lineNumbersEnabled(e.showLineNumbers, e.mode))
 	return prefixWidth
 }
 
-func (r *ScreenRenderer) drawEditorRows(e *Editor, abuf *appendBuffer) {
-	lineNumDigits, lineNumPrefixWidth := lineNumberLayout(e.screenCols, e.totalRows, lineNumbersEnabled(e))
-	contentWidth := e.screenCols - lineNumPrefixWidth
+func (r *ScreenRenderer) drawEditorRows(e *Editor, abuf *appendBuffer, availableCols int) {
+	lineNumDigits, lineNumPrefixWidth := lineNumberLayout(availableCols, e.totalRows, lineNumbersEnabled(e.showLineNumbers, e.mode))
+	contentWidth := availableCols - lineNumPrefixWidth
 
 	for y := range e.screenRows {
 		filerow := y + e.rowOffset
 		if e.mode == EXPLORER_MODE {
-			filerow = explorerFileRowForScreenRow(y, e.rowOffset)
+			filerow = explorerFileRowForScreenRow(y, e.rowOffset, explorerPinnedRows)
 		}
 		if filerow >= e.totalRows {
 			if lineNumDigits > 0 {
@@ -212,7 +197,6 @@ func (r *ScreenRenderer) drawEditorRows(e *Editor, abuf *appendBuffer) {
 			}
 
 			if e.totalRows == 0 && y == e.screenRows/3 {
-				// Welcome Text
 				welcome := "KIGO editor -- version " + version.Version
 				welcomelen := min(len(welcome), max(contentWidth, 0))
 				padding := (max(contentWidth, 0) - welcomelen) / 2
@@ -230,40 +214,34 @@ func (r *ScreenRenderer) drawEditorRows(e *Editor, abuf *appendBuffer) {
 				}
 			}
 		} else {
-			appendDisplayLine(abuf, e.row[filerow], e.colOffset, contentWidth, true, e.row[filerow].idx+1, lineNumDigits, e)
+			appendDisplayLine(abuf, e.rows[filerow], e.colOffset, contentWidth, true, e.rows[filerow].idx+1, lineNumDigits, e.cy)
 		}
 		abuf.append([]byte(CLEAR_LINE))
 		abuf.append([]byte("\r\n")) // TODO: Correct, or os specific line ending?
 	}
 }
 
-func (r *ScreenRenderer) DrawRows(e *Editor, abuf *appendBuffer) {
-	if e.mode == EXPLORER_MODE && e.activeModal != nil {
-		if splitViewModal, ok := e.activeModal.(SplitViewModal); ok && splitViewModal.ShouldShowSplitView(e.screenCols) {
-			r.drawSplitViewRows(e, abuf, splitViewModal)
-			return
-		}
+func (r *ScreenRenderer) DrawRows(e *Editor, abuf *appendBuffer, splitViewEnabled bool, leftWidth int, rightWidth int, rightPreview []string) {
+	if splitViewEnabled {
+		r.drawSplitViewRows(e, rightPreview, leftWidth, rightWidth, abuf)
+		return
 	}
-	r.drawEditorRows(e, abuf)
+	r.drawEditorRows(e, abuf, e.screenCols)
 }
 
-func (r *ScreenRenderer) drawSplitViewRows(e *Editor, abuf *appendBuffer, splitModal SplitViewModal) {
-	leftWidth := e.screenCols / 2
-	rightWidth := e.screenCols - leftWidth - 1
-
+func (r *ScreenRenderer) drawSplitViewRows(e *Editor, rightPreview []string, leftWidth int, rightWidth int, abuf *appendBuffer) {
 	if rightWidth < MIN_SPLIT_PANE_WIDTH {
-		r.drawEditorRows(e, abuf)
+		r.drawEditorRows(e, abuf, e.screenCols)
 		return
 	}
 
-	_, rightPreview := splitModal.GetSplitViewContent(e, rightWidth, e.screenRows)
-	lineNumDigits, lineNumPrefixWidth := lineNumberLayout(leftWidth, e.totalRows, lineNumbersEnabled(e))
+	lineNumDigits, lineNumPrefixWidth := lineNumberLayout(leftWidth, e.totalRows, lineNumbersEnabled(e.showLineNumbers, e.mode))
 	leftContentWidth := leftWidth - lineNumPrefixWidth
 
 	for y := range e.screenRows {
 		filerow := y + e.rowOffset
 		if e.mode == EXPLORER_MODE {
-			filerow = explorerFileRowForScreenRow(y, e.rowOffset)
+			filerow = explorerFileRowForScreenRow(y, e.rowOffset, explorerPinnedRows)
 		}
 		if filerow >= e.totalRows {
 			if lineNumDigits > 0 {
@@ -275,24 +253,20 @@ func (r *ScreenRenderer) drawSplitViewRows(e *Editor, abuf *appendBuffer, splitM
 				welcomelen := min(len(welcome), max(leftContentWidth, 0))
 				padding := (max(leftContentWidth, 0) - welcomelen) / 2
 				if padding > 0 {
-					abuf.append([]byte(" "))
+					abuf.append([]byte("~"))
 					padding--
 				}
 				for range padding {
 					abuf.append([]byte(" "))
 				}
 				abuf.append([]byte(welcome[:welcomelen]))
-				for i := welcomelen + padding + 1; i < leftContentWidth; i++ {
-					abuf.append([]byte(" "))
-				}
 			} else {
-				abuf.append([]byte(" "))
-				for i := 1; i < leftContentWidth; i++ {
-					abuf.append([]byte(" "))
+				if e.mode != EXPLORER_MODE {
+					abuf.append([]byte("~"))
 				}
 			}
 		} else {
-			appendDisplayLine(abuf, e.row[filerow], e.colOffset, leftContentWidth, true, e.row[filerow].idx+1, lineNumDigits, e)
+			appendDisplayLine(abuf, e.rows[filerow], e.colOffset, leftContentWidth, true, e.rows[filerow].idx+1, lineNumDigits, e.cy)
 		}
 
 		abuf.append([]byte("|"))
@@ -333,13 +307,17 @@ func (r *ScreenRenderer) DrawStatusBar(e *Editor, abuf *appendBuffer) {
 	statusLen := min(len(status), e.screenCols)
 
 	filetype := "no ft"
-	if e.syntax != nil {
+	if e.syntax != nil && e.syntax.filetype != "" {
 		filetype = e.syntax.filetype
 	}
 
 	switch e.mode {
 	case EXPLORER_MODE:
-		rstatus = fmt.Sprintf("| %d/%d", e.cy-2, len(e.activeModal.(*ExplorerScreen).files))
+		filecount := 0
+		if explorer, ok := e.activeModal.(*ExplorerScreen); ok {
+			filecount = len(explorer.files)
+		}
+		rstatus = fmt.Sprintf("| %d/%d", e.cy-2, filecount)
 	default:
 		rstatus = fmt.Sprintf("%s | %d/%d", filetype, e.cy+1, e.totalRows)
 	}
@@ -369,17 +347,21 @@ func (r *ScreenRenderer) DrawMessageBar(e *Editor, abuf *appendBuffer) {
 }
 
 func (r *ScreenRenderer) RefreshScreen(e *Editor) {
-	e.Scroll()
+	leftWidth, rightWidth, splitViewEnabled, rightPreview := r.splitViewState(e)
 
 	var abuf appendBuffer
 	abuf.append([]byte(CURSOR_HIDE))
 	abuf.append([]byte(CURSOR_HOME))
 
-	r.DrawRows(e, &abuf)
+	r.DrawRows(e, &abuf, splitViewEnabled, leftWidth, rightWidth, rightPreview)
 	r.DrawStatusBar(e, &abuf)
 	r.DrawMessageBar(e, &abuf)
 
-	cursorCol := e.rx - e.colOffset + r.cursorXOffset(e) + 1
+	availableCols := e.screenCols
+	if splitViewEnabled {
+		availableCols = leftWidth
+	}
+	cursorCol := e.rx - e.colOffset + r.cursorXOffset(e, availableCols) + 1
 	cursorRow := cursorScreenRow(e)
 	abuf.append(fmt.Appendf(nil, CURSOR_POSITION_FORMAT, cursorRow, cursorCol))
 	abuf.append([]byte(CURSOR_SHOW))
@@ -387,11 +369,41 @@ func (r *ScreenRenderer) RefreshScreen(e *Editor) {
 	os.Stdout.Write(abuf.b)
 }
 
-func explorerFileRowForScreenRow(screenRow int, rowOffset int) int {
-	if screenRow < explorerPinnedRows {
+func (r *ScreenRenderer) splitViewState(e *Editor) (leftWidth int, rightWidth int, enabled bool, rightPreview []string) {
+	leftWidth, rightWidth, enabled = r.splitViewWidths(e)
+	if !enabled {
+		return leftWidth, rightWidth, false, nil
+	}
+
+	splitViewModal := e.activeModal.(SplitViewModal)
+	_, rightPreview = splitViewModal.GetSplitViewContent(rightWidth, e.screenRows, e.cy)
+	return leftWidth, rightWidth, true, rightPreview
+}
+
+func (r *ScreenRenderer) splitViewWidths(e *Editor) (leftWidth int, rightWidth int, showSplit bool) {
+	if e.mode != EXPLORER_MODE || e.activeModal == nil {
+		return 0, 0, false
+	}
+
+	leftWidth = e.screenCols / 2
+	rightWidth = e.screenCols - leftWidth - 1
+	if rightWidth < MIN_SPLIT_PANE_WIDTH {
+		return leftWidth, rightWidth, false
+	}
+
+	splitViewModal, ok := e.activeModal.(SplitViewModal)
+	if !ok {
+		return leftWidth, rightWidth, false
+	}
+
+	return leftWidth, rightWidth, splitViewModal.ShouldShowSplitView(e.screenCols)
+}
+
+func explorerFileRowForScreenRow(screenRow int, rowOffset int, pinnedRows int) int {
+	if screenRow < pinnedRows {
 		return screenRow
 	}
-	return rowOffset + (screenRow - explorerPinnedRows)
+	return rowOffset + (screenRow - pinnedRows)
 }
 
 func cursorScreenRow(e *Editor) int {
@@ -408,4 +420,21 @@ func cursorScreenRow(e *Editor) int {
 		return explorerPinnedRows + (e.cy - e.rowOffset) + 1
 	}
 	return e.cy - e.rowOffset + 1
+}
+
+func (r *ScreenRenderer) contentWidthForCurrentView(e *Editor) int {
+	availableCols := e.screenCols
+	if e.mode == EXPLORER_MODE && e.activeModal != nil {
+		if splitViewModal, ok := e.activeModal.(SplitViewModal); ok && splitViewModal.ShouldShowSplitView(e.screenCols) {
+			availableCols = e.screenCols / 2
+		}
+	}
+
+	_, prefixWidth := lineNumberLayout(availableCols, e.totalRows, lineNumbersEnabled(e.showLineNumbers, e.mode))
+	contentWidth := availableCols - prefixWidth
+	if contentWidth < 1 {
+		return 1
+	}
+
+	return contentWidth
 }

@@ -30,7 +30,7 @@ type EditorState struct {
 // getEditorState creates a snapshot of the current editor state
 func (e *Editor) getEditorState() EditorState {
 	return EditorState{
-		rows:      e.row,
+		rows:      e.rows,
 		totalRows: e.totalRows,
 		cx:        e.cx,
 		cy:        e.cy,
@@ -41,7 +41,7 @@ func (e *Editor) getEditorState() EditorState {
 
 // setEditorState restores the editor to a previously saved state
 func (e *Editor) setEditorState(state EditorState) {
-	e.row = state.rows
+	e.rows = state.rows
 	e.totalRows = state.totalRows
 	e.cx = state.cx
 	e.cy = state.cy
@@ -74,30 +74,30 @@ func hasParentDirectory(path string) bool {
 	return cleanPath != filepath.Dir(cleanPath)
 }
 
-func (ex *ExplorerScreen) setExplorerContent(e *Editor) {
-	e.row = ex.content
-	e.totalRows = len(ex.content)
-	e.rowOffset = 0
-	e.SetStatusMessage("%s", ex.GetStatusMessage())
+func (ex *ExplorerScreen) setExplorerContent(host ModalHost) {
+	host.SetRows(ex.content)
+	host.SetTotalRows(len(ex.content))
+	host.SetRowOffset(0)
+	host.SetStatusMessage("%s", ex.GetStatusMessage())
 }
 
-func (ex *ExplorerScreen) setCursorToFirstFile(e *Editor) {
-	e.cy = ex.firstFileRowIndex()
-	ex.setExplorerContent(e)
+func (ex *ExplorerScreen) setCursorToFirstFile(host ModalHost) {
+	host.SetCy(ex.firstFileRowIndex())
+	ex.setExplorerContent(host)
 }
 
-func (ex *ExplorerScreen) setCursorToFileByName(e *Editor, fileName string) bool {
+func (ex *ExplorerScreen) setCursorToFileByName(host ModalHost, fileName string) bool {
 	for i, entry := range ex.files {
 		if entry.Name() == fileName {
-			e.cy = ex.rowIndexForFile(i)
-			ex.setExplorerContent(e)
+			host.SetCy(ex.rowIndexForFile(i))
+			ex.setExplorerContent(host)
 			return true
 		}
 	}
 	return false
 }
 
-func (ex *ExplorerScreen) navigateToParentDirectory(e *Editor) bool {
+func (ex *ExplorerScreen) navigateToParentDirectory(host ModalHost) bool {
 	if !ex.hasParentDir {
 		return false
 	}
@@ -107,28 +107,32 @@ func (ex *ExplorerScreen) navigateToParentDirectory(e *Editor) bool {
 
 	err := ex.refreshContent()
 	if err != nil {
-		e.ShowError("Failed to read directory: %v", err)
+		host.ShowError("Failed to read directory: %v", err)
 		return false
 	}
 
-	if !ex.setCursorToFileByName(e, previousDirName) {
-		ex.setCursorToFirstFile(e)
+	if !ex.setCursorToFileByName(host, previousDirName) {
+		ex.setCursorToFirstFile(host)
 	}
 
 	return true
 }
 
-func (ex *ExplorerScreen) selectionAtCursor(e *Editor) (selectedPath string, selectedEntry os.DirEntry, hasSelection bool) {
-	if ex.hasParentDir && e.cy == ex.parentRowIndex() {
+func (ex *ExplorerScreen) selectionAtCursor(host ModalHost) (selectedPath string, selectedEntry os.DirEntry, hasSelection bool) {
+	return ex.selectionAtRow(host.GetCy())
+}
+
+func (ex *ExplorerScreen) selectionAtRow(cy int) (selectedPath string, selectedEntry os.DirEntry, hasSelection bool) {
+	if ex.hasParentDir && cy == ex.parentRowIndex() {
 		return filepath.Dir(ex.currentDir), nil, true
 	}
 
 	firstFileRow := ex.firstFileRowIndex()
-	if e.cy < firstFileRow {
+	if cy < firstFileRow {
 		return "", nil, false
 	}
 
-	fileIndex := e.cy - firstFileRow
+	fileIndex := cy - firstFileRow
 	if fileIndex < 0 || fileIndex >= len(ex.files) {
 		return "", nil, false
 	}
@@ -204,13 +208,13 @@ func (ex *ExplorerScreen) createExplorerRows(files []os.DirEntry, currentDir str
 		idx:   0,
 		chars: []rune(headerText),
 	}
-	headerRow.Update(ex.editor)
+	headerRow.Update(&ex.editor.Buffer)
 	for i := range headerRow.hl {
 		headerRow.hl[i] = HL_NORMAL
 	}
 	explorerRows = append(explorerRows, headerRow)
 	separatorRow := DisplayLine{idx: ex.separatorRowIndex(), chars: []rune(strings.Repeat("-", ex.editor.screenCols))}
-	separatorRow.Update(ex.editor)
+	separatorRow.Update(&ex.editor.Buffer)
 	explorerRows = append(explorerRows, separatorRow)
 
 	// Add parent directory option (unless we're at root)
@@ -220,14 +224,14 @@ func (ex *ExplorerScreen) createExplorerRows(files []os.DirEntry, currentDir str
 			idx:   ex.parentRowIndex(),
 			chars: []rune(parentText),
 		}
-		parentRow.Update(ex.editor)
+		parentRow.Update(&ex.editor.Buffer)
 		explorerRows = append(explorerRows, parentRow)
 	}
 
 	// Add files
 	for i, file := range files {
 		fileRow := ex.createFileDisplayRow(i, file)
-		fileRow.Update(ex.editor)
+		fileRow.Update(&ex.editor.Buffer)
 		explorerRows = append(explorerRows, fileRow)
 	}
 
@@ -275,12 +279,12 @@ func (ex *ExplorerScreen) ShouldShowSplitView(screenCols int) bool {
 }
 
 // GetSplitViewContent returns the explorer file list and file preview for split view rendering.
-func (ex *ExplorerScreen) GetSplitViewContent(e *Editor, rightWidth int, maxPreviewLines int) ([]DisplayLine, []string) {
+func (ex *ExplorerScreen) GetSplitViewContent(rightWidth int, maxPreviewLines int, cursorRow int) ([]DisplayLine, []string) {
 	// Left pane: explorer content (file list)
 	leftContent := ex.GetContent()
 
 	// Right pane: file preview
-	rightPreview := ex.buildPreviewLines(e, rightWidth, maxPreviewLines)
+	rightPreview := ex.buildPreviewLines(rightWidth, maxPreviewLines, cursorRow)
 
 	return leftContent, rightPreview
 }
@@ -338,12 +342,12 @@ func sanitizePreviewText(text string) string {
 }
 
 // buildPreviewLines returns text lines to render in the preview pane.
-func (ex *ExplorerScreen) buildPreviewLines(e *Editor, width int, maxLines int) []string {
+func (ex *ExplorerScreen) buildPreviewLines(width int, maxLines int, cursorRow int) []string {
 	if width < previewPaneMinWidth || maxLines <= 0 {
 		return nil
 	}
 	preview := make([]string, 0, maxLines)
-	selectedPath, selectedEntry, hasSelection := ex.selectionAtCursor(e)
+	selectedPath, selectedEntry, hasSelection := ex.selectionAtRow(cursorRow)
 
 	// Build header and separator
 	header := ex.buildPreviewHeader(selectedPath, selectedEntry, hasSelection)
@@ -532,65 +536,65 @@ func (ex *ExplorerScreen) moveToParentDirectory() {
 }
 
 // Initialize sets up the initial cursor position for the explorer
-func (ex *ExplorerScreen) Initialize(e *Editor) {
+func (ex *ExplorerScreen) Initialize(host ModalHost) {
 	// Start at first file (skip header and optionally parent dir)
-	ex.setCursorToFirstFile(e)
-	ex.highlightSelectedFile(e)
+	ex.setCursorToFirstFile(host)
+	ex.highlightSelectedFile(host)
 }
 
 // HandleKey processes key presses for the explorer screen
-func (ex *ExplorerScreen) HandleKey(key int, e *Editor) (bool, bool) {
+func (ex *ExplorerScreen) HandleKey(key int, host ModalHost) (bool, bool) {
 	switch key {
 	case 'q', 'Q', '\x1b': // ESC or 'q' to quit
 		return true, true // Close modal and restore previous state
 
 	case ARROW_UP, ARROW_DOWN:
-		ex.handleExplorerNavigation(key, e)
-		ex.highlightSelectedFile(e)
+		ex.handleExplorerNavigation(key, host)
+		ex.highlightSelectedFile(host)
 
 	case ARROW_LEFT: // Go to parent directory
-		ex.navigateToParentDirectory(e)
+		ex.navigateToParentDirectory(host)
 
 	case '\r', ARROW_RIGHT: // Enter key
-		opened, directoryChanged := ex.openSelectedFile(e)
+		opened, directoryChanged := ex.openSelectedFile(host)
 		if opened {
 			return true, false // Close modal but keep new file state (don't restore)
 		}
 
 		// Directory was not changed, since current file has unsaved changes
-		if e.dirty > 0 {
+		if host.GetDirty() > 0 {
 			return false, false
 		}
 
 		if !directoryChanged {
-			ex.setCursorToFirstFile(e)
+			ex.setCursorToFirstFile(host)
 		}
 	}
-	ex.highlightSelectedFile(e)
+	ex.highlightSelectedFile(host)
 
 	return false, false // Don't close modal
 }
 
 // handleExplorerNavigation handles arrow key navigation in the explorer
-func (ex *ExplorerScreen) handleExplorerNavigation(key int, e *Editor) {
+func (ex *ExplorerScreen) handleExplorerNavigation(key int, host ModalHost) {
 	minCy := ex.parentRowIndex()
 	maxCy := len(ex.content) - 1
 
 	switch key {
 	case ARROW_UP:
-		if e.cy > minCy {
-			e.cy--
+		if host.GetCy() > minCy {
+			host.SetCy(host.GetCy() - 1)
 		}
 	case ARROW_DOWN:
-		if e.cy < maxCy {
-			e.cy++
+		if host.GetCy() < maxCy {
+			host.SetCy(host.GetCy() + 1)
 		}
 	}
 }
 
 // highlightSelectedFile highlights the currently selected file in the explorer
-func (ex *ExplorerScreen) highlightSelectedFile(e *Editor) {
-	if e.cy <= 0 || e.cy >= len(ex.content) {
+func (ex *ExplorerScreen) highlightSelectedFile(host ModalHost) {
+	if host.GetCy() <= 0 || host.GetCy() >= len(ex.content) {
 		return
 	}
 
@@ -602,23 +606,23 @@ func (ex *ExplorerScreen) highlightSelectedFile(e *Editor) {
 	}
 
 	// Highlight current selection
-	for j := range ex.content[e.cy].hl {
-		ex.content[e.cy].hl[j] = HL_MATCH
+	for j := range ex.content[host.GetCy()].hl {
+		ex.content[host.GetCy()].hl[j] = HL_MATCH
 	}
 
 	// Update the editor's content reference
-	e.row = ex.content
+	host.SetRows(ex.content)
 }
 
 // openSelectedFile attempts to open the currently selected file or navigate to directory
-func (ex *ExplorerScreen) openSelectedFile(e *Editor) (bool, bool) {
-	selectedPath, selectedEntry, hasSelection := ex.selectionAtCursor(e)
+func (ex *ExplorerScreen) openSelectedFile(host ModalHost) (bool, bool) {
+	selectedPath, selectedEntry, hasSelection := ex.selectionAtCursor(host)
 	if !hasSelection {
 		return false, false
 	}
 
 	if selectedEntry == nil {
-		if ex.navigateToParentDirectory(e) {
+		if ex.navigateToParentDirectory(host) {
 			return false, true
 		}
 		return false, false
@@ -629,28 +633,28 @@ func (ex *ExplorerScreen) openSelectedFile(e *Editor) (bool, bool) {
 		ex.currentDir = selectedPath
 		err := ex.refreshContent()
 		if err != nil {
-			e.ShowError("Failed to read directory: %v", err)
+			host.ShowError("Failed to read directory: %v", err)
 			return false, false
 		}
-		ex.setCursorToFirstFile(e)
+		ex.setCursorToFirstFile(host)
 		return false, true // Directory changed, don't close explorer
 	}
 
-	if e.dirty > 0 {
-		e.SetStatusMessage("File has unsaved changes")
+	if host.GetDirty() > 0 {
+		host.SetStatusMessage("File has unsaved changes")
 		return false, false
 	}
 
 	// Open regular file
-	err := e.Open(selectedPath)
+	err := host.Open(selectedPath)
 	if err != nil {
-		e.ShowError("Failed to open file: %v", err)
+		host.ShowError("Failed to open file: %v", err)
 		return false, false
 	}
 
 	// When a file is opened from explorer we exit the modal without restoring
 	// previous state, so switch mode back to normal editing explicitly.
-	e.mode = EDIT_MODE
+	host.SetMode(EDIT_MODE)
 
 	return true, false // File opened successfully
 }

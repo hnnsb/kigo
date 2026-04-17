@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hnnsb/kigo/editor"
+	"github.com/hnnsb/kigo/internal/editor"
 	"github.com/hnnsb/kigo/internal/version"
 )
 

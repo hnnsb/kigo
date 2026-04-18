@@ -14,6 +14,13 @@ import (
 // ScreenRenderer is responsible for drawing editor state to the terminal.
 type ScreenRenderer struct{}
 
+type splitViewLayout struct {
+	enabled      bool
+	leftWidth    int
+	rightWidth   int
+	rightPreview []string
+}
+
 type appendBuffer struct {
 	b   []byte
 	len int
@@ -187,97 +194,93 @@ func (r *ScreenRenderer) drawEditorRows(e *Editor, abuf *appendBuffer, available
 	contentWidth := availableCols - lineNumPrefixWidth
 
 	for y := range e.screenRows {
-		filerow := y + e.rowOffset
-		if e.mode == EXPLORER_MODE {
-			filerow = explorerFileRowForScreenRow(y, e.rowOffset, explorerPinnedRows)
-		}
-		if filerow >= e.totalRows {
-			if lineNumDigits > 0 {
-				appendEmptyLineNumberPrefix(abuf, lineNumDigits)
-			}
-
-			if e.totalRows == 0 && y == e.screenRows/3 {
-				welcome := "KIGO editor -- version " + version.Version
-				welcomelen := min(len(welcome), max(contentWidth, 0))
-				padding := (max(contentWidth, 0) - welcomelen) / 2
-				if padding > 0 {
-					abuf.append([]byte("~"))
-					padding--
-				}
-				for range padding {
-					abuf.append([]byte(" "))
-				}
-				abuf.append([]byte(welcome[:welcomelen]))
-			} else {
-				if e.mode != EXPLORER_MODE {
-					abuf.append([]byte("~"))
-				}
-			}
-		} else {
-			appendDisplayLine(abuf, e.rows[filerow], e.colOffset, contentWidth, true, e.rows[filerow].idx+1, lineNumDigits, e.cy)
-		}
+		r.drawLeftPaneRow(e, abuf, y, contentWidth, lineNumDigits, false)
 		abuf.append([]byte(CLEAR_LINE))
 		abuf.append([]byte("\r\n")) // TODO: Correct, or os specific line ending?
 	}
 }
 
-func (r *ScreenRenderer) DrawRows(e *Editor, abuf *appendBuffer, splitViewEnabled bool, leftWidth int, rightWidth int, rightPreview []string) {
-	if splitViewEnabled {
-		r.drawSplitViewRows(e, rightPreview, leftWidth, rightWidth, abuf)
-		return
+func (r *ScreenRenderer) fileRowForScreenRow(e *Editor, screenRow int) int {
+	filerow := screenRow + e.rowOffset
+	if e.mode == EXPLORER_MODE {
+		return explorerFileRowForScreenRow(screenRow, e.rowOffset, explorerPinnedRows)
 	}
-	r.drawEditorRows(e, abuf, e.screenCols)
+	return filerow
 }
 
-func (r *ScreenRenderer) drawSplitViewRows(e *Editor, rightPreview []string, leftWidth int, rightWidth int, abuf *appendBuffer) {
-	if rightWidth < MIN_SPLIT_PANE_WIDTH {
+func (r *ScreenRenderer) drawEmptyPaneContent(e *Editor, abuf *appendBuffer, screenRow int, contentWidth int, padToWidth bool) {
+	if e.totalRows == 0 && screenRow == e.screenRows/3 {
+		welcome := "KIGO editor -- version " + version.Version
+		welcomelen := min(len(welcome), max(contentWidth, 0))
+		padding := (max(contentWidth, 0) - welcomelen) / 2
+		printedWidth := 0
+		if padding > 0 {
+			abuf.append([]byte("~"))
+			printedWidth++
+			padding--
+		}
+		for range padding {
+			abuf.append([]byte(" "))
+			printedWidth++
+		}
+		abuf.append([]byte(welcome[:welcomelen]))
+		printedWidth += welcomelen
+
+		if padToWidth {
+			for range max(contentWidth-printedWidth, 0) {
+				abuf.append([]byte(" "))
+			}
+		}
+		return
+	}
+
+	if e.mode != EXPLORER_MODE {
+		abuf.append([]byte("~"))
+		if padToWidth {
+			for range max(contentWidth-1, 0) {
+				abuf.append([]byte(" "))
+			}
+		}
+		return
+	}
+
+	if padToWidth {
+		for range max(contentWidth, 0) {
+			abuf.append([]byte(" "))
+		}
+	}
+}
+
+func (r *ScreenRenderer) drawLeftPaneRow(e *Editor, abuf *appendBuffer, screenRow int, contentWidth int, lineNumDigits int, padToWidth bool) {
+	filerow := r.fileRowForScreenRow(e, screenRow)
+	if filerow >= e.totalRows {
+		if lineNumDigits > 0 {
+			appendEmptyLineNumberPrefix(abuf, lineNumDigits)
+		}
+		r.drawEmptyPaneContent(e, abuf, screenRow, contentWidth, padToWidth)
+		return
+	}
+
+	appendDisplayLine(abuf, e.rows[filerow], e.colOffset, contentWidth, true, e.rows[filerow].idx+1, lineNumDigits, e.cy)
+}
+
+func (r *ScreenRenderer) drawSplitViewRows(e *Editor, abuf *appendBuffer, layout splitViewLayout) {
+	if layout.rightWidth < MIN_SPLIT_PANE_WIDTH {
 		r.drawEditorRows(e, abuf, e.screenCols)
 		return
 	}
 
-	lineNumDigits, lineNumPrefixWidth := lineNumberLayout(leftWidth, e.totalRows, lineNumbersEnabled(e.showLineNumbers, e.mode))
-	leftContentWidth := leftWidth - lineNumPrefixWidth
+	lineNumDigits, lineNumPrefixWidth := lineNumberLayout(layout.leftWidth, e.totalRows, lineNumbersEnabled(e.showLineNumbers, e.mode))
+	leftContentWidth := layout.leftWidth - lineNumPrefixWidth
 
 	for y := range e.screenRows {
-		filerow := y + e.rowOffset
-		if e.mode == EXPLORER_MODE {
-			filerow = explorerFileRowForScreenRow(y, e.rowOffset, explorerPinnedRows)
-		}
-		if filerow >= e.totalRows {
-			if lineNumDigits > 0 {
-				appendEmptyLineNumberPrefix(abuf, lineNumDigits)
-			}
-
-			if e.totalRows == 0 && y == e.screenRows/3 {
-				welcome := "KIGO editor -- version " + version.Version
-				welcomelen := min(len(welcome), max(leftContentWidth, 0))
-				padding := (max(leftContentWidth, 0) - welcomelen) / 2
-				if padding > 0 {
-					abuf.append([]byte("~"))
-					padding--
-				}
-				for range padding {
-					abuf.append([]byte(" "))
-				}
-				abuf.append([]byte(welcome[:welcomelen]))
-			} else {
-				if e.mode != EXPLORER_MODE {
-					abuf.append([]byte("~"))
-				} else {
-					for range max(leftContentWidth, 0) {
-						abuf.append([]byte(" "))
-					}
-				}
-			}
-		} else {
-			appendDisplayLine(abuf, e.rows[filerow], e.colOffset, leftContentWidth, true, e.rows[filerow].idx+1, lineNumDigits, e.cy)
-		}
+		r.drawLeftPaneRow(e, abuf, y, leftContentWidth, lineNumDigits, true)
 
 		abuf.append([]byte("|"))
-		if y < len(rightPreview) {
-			appendPreviewLine(abuf, rightPreview[y], rightWidth)
+		if y < len(layout.rightPreview) {
+			appendPreviewLine(abuf, layout.rightPreview[y], layout.rightWidth)
 		} else {
-			for range rightWidth {
+			for range layout.rightWidth {
 				abuf.append([]byte(" "))
 			}
 		}
@@ -351,19 +354,23 @@ func (r *ScreenRenderer) DrawMessageBar(e *Editor, abuf *appendBuffer) {
 }
 
 func (r *ScreenRenderer) RefreshScreen(e *Editor) {
-	leftWidth, rightWidth, splitViewEnabled, rightPreview := r.splitViewState(e)
+	layout := r.resolveSplitViewLayout(e)
 
 	var abuf appendBuffer
 	abuf.append([]byte(CURSOR_HIDE))
 	abuf.append([]byte(CURSOR_HOME))
 
-	r.DrawRows(e, &abuf, splitViewEnabled, leftWidth, rightWidth, rightPreview)
+	if layout.enabled {
+		r.drawSplitViewRows(e, &abuf, layout)
+	} else {
+		r.drawEditorRows(e, &abuf, e.screenCols)
+	}
 	r.DrawStatusBar(e, &abuf)
 	r.DrawMessageBar(e, &abuf)
 
 	availableCols := e.screenCols
-	if splitViewEnabled {
-		availableCols = leftWidth
+	if layout.enabled {
+		availableCols = layout.leftWidth
 	}
 	cursorCol := e.rx - e.colOffset + r.cursorXOffset(e, availableCols) + 1
 	cursorRow := cursorScreenRow(e)
@@ -373,18 +380,19 @@ func (r *ScreenRenderer) RefreshScreen(e *Editor) {
 	os.Stdout.Write(abuf.b)
 }
 
-func (r *ScreenRenderer) splitViewState(e *Editor) (leftWidth int, rightWidth int, enabled bool, rightPreview []string) {
-	leftWidth, rightWidth, enabled = r.splitViewWidths(e)
-	if !enabled {
-		return leftWidth, rightWidth, false, nil
+func (r *ScreenRenderer) resolveSplitViewLayout(e *Editor) splitViewLayout {
+	layout := splitViewLayout{}
+	layout.leftWidth, layout.rightWidth, layout.enabled = r.shouldUseSplitView(e)
+	if !layout.enabled {
+		return layout
 	}
 
 	splitViewModal := e.activeModal.(SplitViewModal)
-	_, rightPreview = splitViewModal.GetSplitViewContent(rightWidth, e.screenRows, e.cy)
-	return leftWidth, rightWidth, true, rightPreview
+	_, layout.rightPreview = splitViewModal.GetSplitViewContent(layout.rightWidth, e.screenRows, e.cy)
+	return layout
 }
 
-func (r *ScreenRenderer) splitViewWidths(e *Editor) (leftWidth int, rightWidth int, showSplit bool) {
+func (r *ScreenRenderer) shouldUseSplitView(e *Editor) (leftWidth int, rightWidth int, showSplit bool) {
 	if e.mode != EXPLORER_MODE || e.activeModal == nil {
 		return 0, 0, false
 	}

@@ -543,6 +543,8 @@ func (ex *ExplorerScreen) Initialize(host ModalHost) {
 }
 
 // HandleKey processes key presses for the explorer screen
+//
+//	Returns (shouldCloseModal, shouldRestoreState)
 func (ex *ExplorerScreen) HandleKey(key int, host ModalHost) (bool, bool) {
 	switch key {
 	case 'q', 'Q', '\x1b': // ESC or 'q' to quit

@@ -11,6 +11,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/hnnsb/kigo/internal/ansi"
 	"golang.org/x/term"
 )
 
@@ -274,8 +275,8 @@ var HLDB_ENTRIES = []editorSyntax{
 // Die restores terminal, prints an error message and exits the program
 func (e *Editor) Die(format string, args ...any) {
 	e.RestoreTerminal()
-	os.Stdout.Write([]byte(CLEAR_SCREEN))
-	os.Stdout.Write([]byte(CURSOR_HOME))
+	os.Stdout.Write([]byte(ansi.CLEAR_SCREEN))
+	os.Stdout.Write([]byte(ansi.CURSOR_HOME))
 	fmt.Fprintf(os.Stderr, "Error: "+format+"\n", args...)
 	os.Exit(1)
 }
@@ -293,7 +294,7 @@ func (e *Editor) EnableRawMode() error {
 		return errors.New("not running in a terminal")
 	}
 
-	fmt.Print(ENTER_ALT_SCREEN) // enter alternate screen
+	fmt.Print(ansi.ENTER_ALT_SCREEN) // enter alternate screen
 
 	var err error
 	e.terminal.originalState, err = term.MakeRaw(int(os.Stdin.Fd()))
@@ -305,7 +306,7 @@ func (e *Editor) EnableRawMode() error {
 
 // Restore the original terminal state, disabling raw mode.
 func (e *Editor) RestoreTerminal() {
-	fmt.Print(EXIT_ALT_SCREEN) // leave alternate screen
+	fmt.Print(ansi.EXIT_ALT_SCREEN) // leave alternate screen
 
 	if e.terminal != nil && e.terminal.originalState != nil {
 		term.Restore(int(os.Stdin.Fd()), e.terminal.originalState)
@@ -324,17 +325,17 @@ func (e *Editor) readKey() (rune, error) {
 	c := buf[0]
 
 	// Handle escape sequences (special keys)
-	if c == '\x1b' {
+	if c == ansi.ESC {
 		seq := make([]byte, 5)
 		if n, err := os.Stdin.Read(seq[0:2]); n != 2 || err != nil {
-			return '\x1b', nil // Return escape if we can't read sequence
+			return ansi.ESC, nil // Return escape if we can't read sequence
 		}
 
 		switch seq[0] {
 		case '[':
 			if seq[1] >= '0' && seq[1] <= '9' {
 				if n, err := os.Stdin.Read(seq[2:3]); n != 1 || err != nil {
-					return '\x1b', nil
+					return ansi.ESC, nil
 				}
 				if seq[2] == '~' {
 					switch seq[1] {
@@ -352,7 +353,7 @@ func (e *Editor) readKey() (rune, error) {
 				}
 				if seq[2] == ';' { // Handle modifier keys (e.g., Shift, Ctrl)
 					if n, err := os.Stdin.Read(seq[3:5]); n != 2 || err != nil {
-						return '\x1b', nil
+						return ansi.ESC, nil
 					}
 					e.Debug("Modifier key sequence detected: %v - %s", seq, seq)
 					switch seq[3] {
@@ -381,7 +382,7 @@ func (e *Editor) readKey() (rune, error) {
 							}
 						}
 					case '3': // Alt
-						return '\x1b', nil // For now, we will not handle alt+arrows differently
+						return ansi.ESC, nil // For now, we will not handle alt+arrows differently
 					case '5': // Ctrl
 						switch seq[4] {
 						case 'A':
@@ -407,7 +408,7 @@ func (e *Editor) readKey() (rune, error) {
 							}
 						}
 					case '6': // Ctrl+Shift
-						return '\x1b', nil
+						return ansi.ESC, nil
 					case '7': // Ctrl+Alt
 						switch seq[4] {
 						case 'A':
@@ -441,7 +442,7 @@ func (e *Editor) readKey() (rune, error) {
 				return END_KEY, nil
 			}
 		}
-		return '\x1b', nil // Unknown escape sequence, return escape
+		return ansi.ESC, nil // Unknown escape sequence, return escape
 	}
 
 	// For ASCII characters, return directly
@@ -659,29 +660,29 @@ func (row *DisplayLine) UpdateSyntax(b *Buffer) {
 func syntaxToGraphics(hl int) (int, int) {
 	switch hl {
 	case HL_COMMENT, HL_MLCOMMENT:
-		return ANSI_COLOR_CYAN, ANSI_ITALIC
+		return ansi.COLOR_CYAN, ansi.ITALIC
 	case HL_KEYWORD1:
-		return ANSI_COLOR_YELLOW, 0
+		return ansi.COLOR_YELLOW, 0
 	case HL_KEYWORD2:
-		return ANSI_COLOR_GREEN, 0
+		return ansi.COLOR_GREEN, 0
 	case HL_STRING:
-		return ANSI_COLOR_MAGENTA, 0
+		return ansi.COLOR_MAGENTA, 0
 	case HL_NUMBER:
-		return ANSI_COLOR_RED_INTENSE, 0
+		return ansi.COLOR_RED_INTENSE, 0
 	case HL_MATCH:
-		return ANSI_COLOR_BLUE_INTENSE, ANSI_REVERSE
+		return ansi.COLOR_BLUE_INTENSE, ansi.REVERSE
 	case HL_CONTROL:
-		return ANSI_COLOR_RED, ANSI_REVERSE
+		return ansi.COLOR_RED, ansi.REVERSE
 	case HL_BOLD:
-		return ANSI_COLOR_CYAN, ANSI_BOLD
+		return ansi.COLOR_CYAN, ansi.BOLD
 	default:
-		return ANSI_COLOR_DEFAULT, 0
+		return ansi.COLOR_DEFAULT, 0
 	}
 }
 
 // Get the appropriate reset code for a given style
 func getStyleResetCode(style int) int {
-	if resetCode, exists := styleResetCodes[style]; exists {
+	if resetCode, exists := ansi.StyleResetCodes[style]; exists {
 		return resetCode
 	}
 	return 0
@@ -785,7 +786,7 @@ func (row *DisplayLine) Update(b *Buffer) {
 			switch char {
 			case 127: // DEL character
 				row.render = append(row.render, '?')
-			case '\x1b': // ESC character
+			case ansi.ESC: // ESC character
 				row.render = append(row.render, '[')
 			default:
 				row.render = append(row.render, char+'@') // Convert control character to printable

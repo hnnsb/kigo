@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/hnnsb/kigo/internal/ansi"
 	"github.com/hnnsb/kigo/internal/version"
 	"github.com/mattn/go-runewidth"
 )
@@ -88,11 +89,14 @@ func appendEmptyLineNumberPrefix(abuf *appendBuffer, digits int) {
 
 func appendDisplayLine(abuf *appendBuffer, line DisplayLine, startOffset int, maxWidth int, pad bool, lineNum int, lineNumDigits int, cursorRow int) {
 	if lineNumDigits > 0 {
-		color := ANSI_COLOR_BLACK_INTENSE
+		color := ansi.COLOR_BLACK_INTENSE
 		if line.idx == cursorRow {
-			color = ANSI_COLOR_DEFAULT
+			color = ansi.COLOR_DEFAULT
 		}
-		abuf.append(fmt.Appendf(nil, "\x1b[%dm%*d\x1b[%dm ", color, lineNumDigits, lineNum, ANSI_COLOR_DEFAULT))
+		abuf.append(ansi.EscGraphic(color))
+		abuf.append(fmt.Appendf(nil, "%*d", lineNumDigits, lineNum))
+		abuf.append(ansi.EscGraphic(ansi.COLOR_DEFAULT))
+		abuf.append([]byte(" "))
 	}
 
 	if maxWidth <= 0 {
@@ -113,13 +117,13 @@ func appendDisplayLine(abuf *appendBuffer, line DisplayLine, startOffset int, ma
 		}
 		if h == HL_NORMAL {
 			if currentColor != -1 {
-				abuf.append(fmt.Appendf(nil, "\x1b[%dm", ANSI_COLOR_DEFAULT))
+				abuf.append(ansi.EscGraphic(ansi.COLOR_DEFAULT))
 				currentColor = -1
 			}
 			if currentStyle != 0 {
 				resetCode := getStyleResetCode(currentStyle)
 				if resetCode != 0 {
-					abuf.append(fmt.Appendf(nil, "\x1b[%dm", resetCode))
+					abuf.append(ansi.EscGraphic(resetCode))
 				}
 				currentStyle = 0
 			}
@@ -130,17 +134,17 @@ func appendDisplayLine(abuf *appendBuffer, line DisplayLine, startOffset int, ma
 				if currentStyle != 0 {
 					resetCode := getStyleResetCode(currentStyle)
 					if resetCode != 0 {
-						abuf.append(fmt.Appendf(nil, "\x1b[%dm", resetCode))
+						abuf.append(ansi.EscGraphic(resetCode))
 					}
 				}
 				if style != 0 {
-					abuf.append(fmt.Appendf(nil, "\x1b[%dm", style))
+					abuf.append(ansi.EscGraphic(style))
 				}
 				currentStyle = style
 			}
 			if color != currentColor {
 				currentColor = color
-				abuf.append(fmt.Appendf(nil, "\x1b[%dm", color))
+				abuf.append(ansi.EscGraphic(color))
 			}
 			abuf.append([]byte(string(c)))
 		}
@@ -150,11 +154,11 @@ func appendDisplayLine(abuf *appendBuffer, line DisplayLine, startOffset int, ma
 		}
 	}
 
-	abuf.append(fmt.Appendf(nil, "\x1b[%dm", ANSI_COLOR_DEFAULT))
+	abuf.append(ansi.EscGraphic(ansi.COLOR_DEFAULT))
 	if currentStyle != 0 {
 		resetCode := getStyleResetCode(currentStyle)
 		if resetCode != 0 {
-			abuf.append(fmt.Appendf(nil, "\x1b[%dm", resetCode))
+			abuf.append(ansi.EscGraphic(resetCode))
 		}
 	}
 
@@ -195,7 +199,7 @@ func (r *ScreenRenderer) drawEditorRows(e *Editor, abuf *appendBuffer, available
 
 	for y := range e.screenRows {
 		r.drawLeftPaneRow(e, abuf, y, contentWidth, lineNumDigits, false)
-		abuf.append([]byte(CLEAR_LINE))
+		abuf.append([]byte(ansi.CLEAR_LINE))
 		abuf.append([]byte("\r\n")) // TODO: Correct, or os specific line ending?
 	}
 }
@@ -284,13 +288,13 @@ func (r *ScreenRenderer) drawSplitViewRows(e *Editor, abuf *appendBuffer, layout
 				abuf.append([]byte(" "))
 			}
 		}
-		abuf.append([]byte(CLEAR_LINE))
+		abuf.append([]byte(ansi.CLEAR_LINE))
 		abuf.append([]byte("\r\n")) // TODO: Correct, or os specific line ending needed?
 	}
 }
 
 func (r *ScreenRenderer) DrawStatusBar(e *Editor, abuf *appendBuffer) {
-	abuf.append([]byte(COLORS_INVERT))
+	abuf.append([]byte(ansi.COLORS_INVERT))
 
 	var status string
 	var rstatus string
@@ -341,12 +345,12 @@ func (r *ScreenRenderer) DrawStatusBar(e *Editor, abuf *appendBuffer) {
 		statusLen++
 	}
 
-	abuf.append([]byte(COLORS_RESET))
+	abuf.append([]byte(ansi.COLORS_RESET))
 	abuf.append([]byte("\r\n")) // TODO: Correct, or os specific line ending?
 }
 
 func (r *ScreenRenderer) DrawMessageBar(e *Editor, abuf *appendBuffer) {
-	abuf.append([]byte(CLEAR_LINE))
+	abuf.append([]byte(ansi.CLEAR_LINE))
 	messageLen := min(len(e.statusMessage), e.screenCols)
 	if time.Since(e.statusMessageTime) < 5*time.Second {
 		abuf.append([]byte(e.statusMessage[:messageLen]))
@@ -357,8 +361,8 @@ func (r *ScreenRenderer) RefreshScreen(e *Editor) {
 	layout := r.resolveSplitViewLayout(e)
 
 	var abuf appendBuffer
-	abuf.append([]byte(CURSOR_HIDE))
-	abuf.append([]byte(CURSOR_HOME))
+	abuf.append([]byte(ansi.CURSOR_HIDE))
+	abuf.append([]byte(ansi.CURSOR_HOME))
 
 	if layout.enabled {
 		r.drawSplitViewRows(e, &abuf, layout)
@@ -374,8 +378,8 @@ func (r *ScreenRenderer) RefreshScreen(e *Editor) {
 	}
 	cursorCol := e.rx - e.colOffset + r.cursorXOffset(e, availableCols) + 1
 	cursorRow := cursorScreenRow(e)
-	abuf.append(fmt.Appendf(nil, CURSOR_POSITION_FORMAT, cursorRow, cursorCol))
-	abuf.append([]byte(CURSOR_SHOW))
+	abuf.append(fmt.Appendf(nil, ansi.CURSOR_POSITION_FORMAT, cursorRow, cursorCol))
+	abuf.append([]byte(ansi.CURSOR_SHOW))
 
 	os.Stdout.Write(abuf.b)
 }

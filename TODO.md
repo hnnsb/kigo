@@ -143,6 +143,7 @@
   - [x] cursor movement by word (ctrl+arrows)
   - [x] word delete (ctrl+del/ctrl+backspace)
   - [x] delete line
+    - fix word delete on linebreak
 - [/] add function to tab key?
   - [x] Basic typing
   - indention (tab/shift+tab)

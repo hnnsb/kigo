@@ -276,6 +276,9 @@ func (e *Editor) insertRegularKey(key rune) bool {
 }
 
 func (e *Editor) handleEnterKey() {
+	if len(e.rows) < e.cy+1 {
+		e.InsertRow(e.cy, []rune{}, 0)
+	}
 	row := &e.rows[e.cy]
 
 	indentLine := e.cx < len(row.chars) && slices.Contains([]rune{')', '}', ']'}, row.chars[e.cx])

@@ -80,6 +80,7 @@ func TestIsUpdateConfirmation(t *testing.T) {
 	}{
 		{name: "single letter yes", input: "y\n", expected: true},
 		{name: "word yes", input: "yes\n", expected: true},
+		{name: "yes without newline", input: "yes", expected: true},
 		{name: "uppercase yes", input: "YES\n", expected: true},
 		{name: "no", input: "n\n", expected: false},
 		{name: "empty", input: "\n", expected: false},

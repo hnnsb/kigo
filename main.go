@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"os/exec"
@@ -134,7 +135,7 @@ func confirmUpdate() bool {
 
 	reader := bufio.NewReader(os.Stdin)
 	response, err := reader.ReadString('\n')
-	if err != nil && strings.TrimSpace(response) == "" {
+	if err != nil && err != io.EOF {
 		return false
 	}
 

@@ -85,6 +85,7 @@ func TestIsUpdateConfirmation(t *testing.T) {
 		{name: "no", input: "n\n", expected: false},
 		{name: "empty", input: "\n", expected: false},
 		{name: "whitespace", input: "   \t", expected: false},
+		{name: "whitespace with newline", input: "   \t\n", expected: false},
 	}
 
 	for _, tt := range tests {

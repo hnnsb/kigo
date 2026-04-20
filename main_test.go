@@ -71,3 +71,29 @@ func TestClassifyStartupPathMissingDefaultsToFile(t *testing.T) {
 		t.Fatalf("expected filePath %q, got %q", missing, filePath)
 	}
 }
+
+func TestIsUpdateConfirmation(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected bool
+	}{
+		{name: "single letter yes", input: "y\n", expected: true},
+		{name: "word yes", input: "yes\n", expected: true},
+		{name: "yes without newline", input: "yes", expected: true},
+		{name: "uppercase yes", input: "YES\n", expected: true},
+		{name: "no", input: "n\n", expected: false},
+		{name: "empty", input: "\n", expected: false},
+		{name: "whitespace", input: "   \t", expected: false},
+		{name: "whitespace with newline", input: "   \t\n", expected: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := isConfirmation(tt.input)
+			if got != tt.expected {
+				t.Fatalf("isUpdateConfirmation(%q) = %v, expected %v", tt.input, got, tt.expected)
+			}
+		})
+	}
+}

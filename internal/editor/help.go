@@ -53,7 +53,7 @@ func NewHelpScreen(editor *Editor) *HelpScreen {
 			idx:   i,
 			chars: []rune(line),
 		}
-		content[i].Update(editor)
+		content[i].Update(&editor.Buffer)
 	}
 
 	return &HelpScreen{
@@ -77,64 +77,66 @@ func (h *HelpScreen) GetStatusMessage() string {
 }
 
 // Initialize sets up the initial cursor position for the help screen
-func (h *HelpScreen) Initialize(e *Editor) {
+func (h *HelpScreen) Initialize(host ModalHost) {
 	// Help screen starts at the top
-	e.cy = 0
-	e.rowOffset = 0
+	host.SetCy(0)
+	host.SetRowOffset(0)
 }
 
 // HandleKey processes key presses for the help screen
-func (h *HelpScreen) HandleKey(key int, e *Editor) (bool, bool) {
+func (h *HelpScreen) HandleKey(key int, host ModalHost) (bool, bool) {
 	switch key {
 	case 'q', 'Q', '\x1b': // ESC or 'q' to quit
 		return true, true // Close modal and restore previous state
 
 	case ARROW_UP:
-		if e.cy > 0 {
-			e.cy--
-		} else if e.rowOffset > 0 {
-			e.rowOffset--
+		if host.GetCy() > 0 {
+			host.SetCy(host.GetCy() - 1)
+		} else if host.GetRowOffset() > 0 {
+			host.SetRowOffset(host.GetRowOffset() - 1)
 		}
 
 	case ARROW_DOWN:
 		maxCy := len(h.content) - 1
-		if e.cy < e.screenRows-1 && e.cy < maxCy {
-			e.cy++
-		} else if e.rowOffset+e.screenRows < len(h.content) {
-			e.rowOffset++
+		screenRows := host.GetScreenRows()
+		if host.GetCy() < screenRows-1 && host.GetCy() < maxCy {
+			host.SetCy(host.GetCy() + 1)
+		} else if host.GetRowOffset()+screenRows < len(h.content) {
+			host.SetRowOffset(host.GetRowOffset() + 1)
 		}
 
 	case PAGE_UP:
-		for i := 0; i < e.screenRows && (e.cy > 0 || e.rowOffset > 0); i++ {
-			if e.cy > 0 {
-				e.cy--
-			} else if e.rowOffset > 0 {
-				e.rowOffset--
+		for i := 0; i < host.GetScreenRows() && (host.GetCy() > 0 || host.GetRowOffset() > 0); i++ {
+			if host.GetCy() > 0 {
+				host.SetCy(host.GetCy() - 1)
+			} else if host.GetRowOffset() > 0 {
+				host.SetRowOffset(host.GetRowOffset() - 1)
 			}
 		}
 
 	case PAGE_DOWN:
-		for i := 0; i < e.screenRows && e.rowOffset+e.cy < len(h.content)-1; i++ {
+		screenRows := host.GetScreenRows()
+		for i := 0; i < screenRows && host.GetRowOffset()+host.GetCy() < len(h.content)-1; i++ {
 			maxCy := len(h.content) - 1
-			if e.cy < e.screenRows-1 && e.cy < maxCy {
-				e.cy++
-			} else if e.rowOffset+e.screenRows < len(h.content) {
-				e.rowOffset++
+			if host.GetCy() < screenRows-1 && host.GetCy() < maxCy {
+				host.SetCy(host.GetCy() + 1)
+			} else if host.GetRowOffset()+screenRows < len(h.content) {
+				host.SetRowOffset(host.GetRowOffset() + 1)
 			}
 		}
 
 	case HOME_KEY:
-		e.cy = 0
-		e.rowOffset = 0
+		host.SetCy(0)
+		host.SetRowOffset(0)
 
 	case END_KEY:
 		maxRows := len(h.content)
-		if maxRows <= e.screenRows {
-			e.cy = maxRows - 1
-			e.rowOffset = 0
+		if maxRows <= host.GetScreenRows() {
+			host.SetCy(maxRows - 1)
+			host.SetRowOffset(0)
 		} else {
-			e.cy = e.screenRows - 1
-			e.rowOffset = maxRows - e.screenRows
+			host.SetCy(host.GetScreenRows() - 1)
+			host.SetRowOffset(maxRows - host.GetScreenRows())
 		}
 	}
 

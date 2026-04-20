@@ -73,9 +73,7 @@ func TestBuildPreviewLinesForSelectedFile(t *testing.T) {
 		currentDir: tmpDir,
 		files:      entries,
 	}
-	e := &Editor{Viewport: Viewport{cy: 2}}
-
-	lines := ex.buildPreviewLines(e, 24, 8)
+	lines := ex.buildPreviewLines(24, 8, 2)
 	if len(lines) == 0 {
 		t.Fatalf("expected preview lines")
 	}

@@ -23,15 +23,18 @@ kigo/
 +-- README.md               # User-facing project documentation
 +-- CONTEXT.md              # LLM context and architecture overview
 +-- TODO.md                 # Roadmap and refactor tracking
-+-- editor/
-    +-- editor.go           # Core models + editing/input logic
-    +-- renderer.go         # ScreenRenderer drawing pipeline
-    +-- modal.go            # Modal interfaces and modal manager
-    +-- explorer.go         # Explorer modal and preview content
-    +-- help.go             # Help modal
-    +-- ansi.go             # ANSI constants and terminal helpers
-    +-- editor_test.go      # Editor tests
-    +-- explorer_test.go    # Explorer tests
++-- internal/
+    +-- editor/
+    |   +-- editor.go       # Core models + editing/input logic
+    |   +-- renderer.go     # ScreenRenderer drawing pipeline
+    |   +-- modal.go        # Modal interfaces and modal manager
+    |   +-- explorer.go     # Explorer modal and preview content
+    |   +-- help.go         # Help modal
+    |   +-- ansi.go         # ANSI constants and terminal helpers
+    |   +-- editor_test.go  # Editor tests
+    |   +-- explorer_test.go# Explorer tests
+    +-- version/
+        +-- version.go      # Build-time version metadata
 ```
 
 ## Core Architecture
@@ -70,7 +73,7 @@ Viewport.Scroll(totalRows, rows) computes cursor-relative scrolling.
 
 ### 4. ScreenRenderer
 
-ScreenRenderer in editor/renderer.go owns terminal output rendering.
+ScreenRenderer in internal/editor/renderer.go owns terminal output rendering.
 
 - Draws body rows, status bar, message bar, and cursor position
 - Applies syntax styles/colors
@@ -87,7 +90,7 @@ modal.go defines an interface-based modal architecture:
 
 ### 6. Explorer Integration
 
-ExplorerScreen (explorer.go):
+ExplorerScreen (internal/editor/explorer.go):
 
 - Reads and sorts directory entries (directories first)
 - Produces DisplayLine content for modal list rendering

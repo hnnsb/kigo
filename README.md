@@ -82,6 +82,20 @@ After downloading:
 1. extract the archive
 2. move the binary into your PATH
 
+## Development
+
+Build the CLI binary from source:
+
+```bash
+go build
+```
+
+Run tests:
+
+```bash
+go test ./...
+```
+
 ## Debugging
 
 Live read log file

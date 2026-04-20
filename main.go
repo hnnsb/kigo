@@ -1,15 +1,18 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
-	"github.com/hnnsb/kigo/editor"
+	"github.com/hnnsb/kigo/internal/editor"
 	"github.com/hnnsb/kigo/internal/version"
 )
 
@@ -25,13 +28,22 @@ func main() {
 			printVersion()
 			return
 		case "--update":
-			update()
+			if !confirmUpdate() {
+				fmt.Println("Update canceled.")
+				return
+			}
+			if err := update(); err != nil {
+				fmt.Fprintf(os.Stderr, "Update failed: %v\n", err)
+				os.Exit(1)
+			}
+			return
 		}
 	}
 
 	logFile, err := getLogFile("kigo")
 	if err != nil {
-		panic(err)
+		fmt.Fprintf(os.Stderr, "Failed to initialize log file: %v\n", err)
+		os.Exit(1)
 	}
 	defer logFile.Close()
 
@@ -99,12 +111,56 @@ func printHelp() {
 	fmt.Print(strings.Join(helpLines, "\n"))
 }
 
-func update() {
+func update() error {
 	fmt.Println("Checking for updates...")
-	cmd := exec.Command("sh", "-c", "curl -sL https://github.com/hnnsb/kigo/install.sh | bash")
+
+	var cmd *exec.Cmd
+	if runtime.GOOS == "windows" {
+		cmd = exec.Command("powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", "iwr https://raw.githubusercontent.com/hnnsb/kigo/main/install.ps1 -UseBasicParsing | iex")
+	} else {
+		cmd = exec.Command("sh", "-c", "curl -sL https://raw.githubusercontent.com/hnnsb/kigo/main/install.sh | bash")
+	}
+
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	cmd.Run()
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("running update script: %w", err)
+	}
+
+	return nil
+}
+
+func confirmUpdate() bool {
+	url := "https://github.com/hnnsb/kigo/blob/main/install.sh"
+	if runtime.GOOS == "windows" {
+		url = "https://github.com/hnnsb/kigo/blob/main/install.ps1"
+	}
+
+	question := []string{
+		"This will download and run the latest install script. \n",
+		"The script can be found and reviewed at ",
+		url,
+		"\n",
+		"Continue? [y/N]:",
+	}
+	fmt.Print(strings.Join(question, " "))
+
+	reader := bufio.NewReader(os.Stdin)
+	response, err := reader.ReadString('\n')
+	if err != nil && err != io.EOF {
+		return false
+	}
+
+	return isConfirmation(response)
+}
+
+func isConfirmation(response string) bool {
+	switch strings.ToLower(strings.TrimSpace(response)) {
+	case "y", "yes":
+		return true
+	default:
+		return false
+	}
 }
 
 func classifyStartupPath(arg string) (filePath string, dirPath string, err error) {

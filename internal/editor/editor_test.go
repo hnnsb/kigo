@@ -16,10 +16,10 @@ func TestEditorRowDeleteChar(t *testing.T) {
 	}
 
 	// Initialize the render and hl slices
-	row.Update(e)
+	row.Update(&e.Buffer)
 
 	// Test deleting a character
-	row.deleteChar(e, 1) // Delete 'e' from "hello"
+	row.deleteChar(1, &e.Buffer) // Delete 'e' from "hello"
 
 	// Check if the character was deleted correctly
 	expected := "hllo"
@@ -46,11 +46,11 @@ func TestEditorRowDeleteCharMultiple(t *testing.T) {
 	}
 
 	// Initialize the render and hl slices
-	row.Update(e)
+	row.Update(&e.Buffer)
 
 	// Test deleting multiple characters
-	row.deleteChar(e, 0) // Delete 'a' from "abc" -> "bc"
-	row.deleteChar(e, 0) // Delete 'b' from "bc" -> "c"
+	row.deleteChar(0, &e.Buffer) // Delete 'a' from "abc" -> "bc"
+	row.deleteChar(0, &e.Buffer) // Delete 'b' from "bc" -> "c"
 
 	// Check if the characters were deleted correctly
 	expected := "c"
@@ -64,4 +64,3 @@ func TestEditorRowDeleteCharMultiple(t *testing.T) {
 		t.Errorf("Expected chars slice length 1, got %d", len(row.chars))
 	}
 }
-

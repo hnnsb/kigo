@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"log"
 	"os"
@@ -26,6 +27,10 @@ func main() {
 			printVersion()
 			return
 		case "--update":
+			if !confirmUpdate() {
+				fmt.Println("Update canceled.")
+				return
+			}
 			if err := update(); err != nil {
 				fmt.Fprintf(os.Stderr, "Update failed: %v\n", err)
 				os.Exit(1)
@@ -122,6 +127,23 @@ func update() error {
 	}
 
 	return nil
+}
+
+func confirmUpdate() bool {
+	fmt.Print("This will download and run the latest install script. Continue? [y/N]: ")
+
+	reader := bufio.NewReader(os.Stdin)
+	response, err := reader.ReadString('\n')
+	if err != nil {
+		return false
+	}
+
+	switch strings.ToLower(strings.TrimSpace(response)) {
+	case "y", "yes":
+		return true
+	default:
+		return false
+	}
 }
 
 func classifyStartupPath(arg string) (filePath string, dirPath string, err error) {

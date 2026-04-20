@@ -131,7 +131,19 @@ func update() error {
 }
 
 func confirmUpdate() bool {
-	fmt.Print("This will download and run the latest install script. Continue? [y/N]: ")
+	url := "https://github.com/hnnsb/kigo/blob/main/install.sh"
+	if runtime.GOOS == "windows" {
+		url = "https://github.com/hnnsb/kigo/blob/main/install.ps1"
+	}
+
+	question := []string{
+		"This will download and run the latest install script. \n",
+		"The script can be found and reviewed at ",
+		url,
+		"\n",
+		"Continue? [y/N]:",
+	}
+	fmt.Print(strings.Join(question, " "))
 
 	reader := bufio.NewReader(os.Stdin)
 	response, err := reader.ReadString('\n')
@@ -139,10 +151,10 @@ func confirmUpdate() bool {
 		return false
 	}
 
-	return isUpdateConfirmation(response)
+	return isConfirmation(response)
 }
 
-func isUpdateConfirmation(response string) bool {
+func isConfirmation(response string) bool {
 	switch strings.ToLower(strings.TrimSpace(response)) {
 	case "y", "yes":
 		return true

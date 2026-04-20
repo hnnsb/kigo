@@ -98,7 +98,7 @@ var StyleResetCodes = map[int]int{
 	0:             0, // Normal style has no reset needed
 }
 
-// escGraphi creates the control sequence, consisting of control sequence
+// EscGraphic creates the control sequence, consisting of control sequence
 // introducer (CSI) and style, to apply the given style modifier:
 //	 "\x1b[<style>m"
 func EscGraphic(style int) []byte {

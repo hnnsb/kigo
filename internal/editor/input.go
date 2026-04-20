@@ -74,7 +74,7 @@ func isDigit(r rune) bool {
 
 /*** input ***/
 
-// readKey reads then input sequence from Stdin and returns the corresponding
+// readKey reads the input sequence from Stdin and returns the corresponding
 // rune or constant alias for control sequences
 func (e *Editor) readKey() (rune, error) {
 	buf := make([]byte, 1)
@@ -144,7 +144,7 @@ func (e *Editor) readKey() (rune, error) {
 							}
 						}
 					case '3': // Alt
-						// Alt+arrows are used in Windows Terminal to switch between split windows, so sequnces are not send to kigo.
+						// Alt+arrows are used in Windows Terminal to switch between split windows, so sequences are not sent to kigo.
 						return ansi.ESC, nil // For now, we will not handle alt+arrows differently
 					case '5': // Ctrl
 						switch seq[4] {

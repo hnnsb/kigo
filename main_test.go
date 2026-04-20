@@ -89,7 +89,7 @@ func TestIsUpdateConfirmation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := isUpdateConfirmation(tt.input)
+			got := isConfirmation(tt.input)
 			if got != tt.expected {
 				t.Fatalf("isUpdateConfirmation(%q) = %v, expected %v", tt.input, got, tt.expected)
 			}

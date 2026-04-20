@@ -93,7 +93,7 @@ go build
 Run tests:
 
 ```bash
-go test .\...
+go test ./...
 ```
 
 ## Debugging

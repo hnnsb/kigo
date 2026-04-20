@@ -134,10 +134,14 @@ func confirmUpdate() bool {
 
 	reader := bufio.NewReader(os.Stdin)
 	response, err := reader.ReadString('\n')
-	if err != nil {
+	if err != nil && strings.TrimSpace(response) == "" {
 		return false
 	}
 
+	return isUpdateConfirmation(response)
+}
+
+func isUpdateConfirmation(response string) bool {
 	switch strings.ToLower(strings.TrimSpace(response)) {
 	case "y", "yes":
 		return true

@@ -114,18 +114,21 @@ func printHelp() {
 func update() error {
 	fmt.Println("Checking for updates...")
 
+	pid := os.Getpid()
 	var cmd *exec.Cmd
 	if runtime.GOOS == "windows" {
-		cmd = exec.Command("powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", "iwr https://raw.githubusercontent.com/hnnsb/kigo/main/install.ps1 -UseBasicParsing | iex")
+		script := fmt.Sprintf("$parentPidValue = %d; while (Get-Process -Id $parentPidValue -ErrorAction SilentlyContinue) { Start-Sleep -Milliseconds 200 }; iwr https://raw.githubusercontent.com/hnnsb/kigo/main/install.ps1 -UseBasicParsing | iex", pid)
+		cmd = exec.Command("powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script)
 	} else {
-		cmd = exec.Command("sh", "-c", "curl -sL https://raw.githubusercontent.com/hnnsb/kigo/main/install.sh | bash")
+		script := fmt.Sprintf("while kill -0 %d 2>/dev/null; do sleep 0.2; done; curl -sL https://raw.githubusercontent.com/hnnsb/kigo/main/install.sh | bash", pid)
+		cmd = exec.Command("sh", "-c", script)
 	}
 
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("running update script: %w", err)
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("starting update script: %w", err)
 	}
+
+	fmt.Println("Updater started. Exiting Kigo so the binary can be replaced...")
 
 	return nil
 }

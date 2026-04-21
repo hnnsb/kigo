@@ -3,8 +3,23 @@ $ErrorActionPreference = "Stop"
 $Repo = "hnnsb/kigo"
 $Binary = "kigo"
 $InstallDir = "$env:LOCALAPPDATA\Programs\kigo"
+$WaitTimeoutSeconds = 30
 
 Write-Host "Installing $Binary..." -ForegroundColor Cyan
+
+# Avoid replacing the binary while an existing process is still running.
+$waitStarted = Get-Date
+while (Get-Process -Name $Binary -ErrorAction SilentlyContinue) {
+    $elapsed = (Get-Date) - $waitStarted
+    if ($elapsed.TotalSeconds -ge $WaitTimeoutSeconds) {
+        Write-Error "$Binary is still running after $WaitTimeoutSeconds seconds. Please close it and run the installer again."
+        exit 1
+    }
+
+    $remaining = [Math]::Ceiling($WaitTimeoutSeconds - $elapsed.TotalSeconds)
+    Write-Host "Waiting for $Binary to close... ($remaining s left)"
+    Start-Sleep -Milliseconds 500
+}
 
 # Detect architecture
 $arch = $env:PROCESSOR_ARCHITECTURE

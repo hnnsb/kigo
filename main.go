@@ -124,6 +124,11 @@ func update() error {
 		cmd = exec.Command("sh", "-c", script)
 	}
 
+	// Keep updater output in the same terminal session used for --update.
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("starting update script: %w", err)
 	}

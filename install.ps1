@@ -5,6 +5,13 @@ $Binary = "kigo"
 $InstallDir = "$env:LOCALAPPDATA\Programs\kigo"
 $WaitTimeoutSeconds = 30
 
+function Normalize-Version([string]$version) {
+    if ([string]::IsNullOrWhiteSpace($version)) {
+        return ""
+    }
+    return ($version.Trim() -replace '^v', '')
+}
+
 Write-Host "Installing $Binary..." -ForegroundColor Cyan
 
 # Avoid replacing the binary while an existing process is still running.
@@ -33,6 +40,50 @@ switch ($arch) {
 }
 
 $os = "windows"
+
+$LatestVersionRaw = ""
+$LatestVersion = ""
+try {
+    $release = Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/releases/latest"
+    $LatestVersionRaw = [string]$release.tag_name
+    $LatestVersion = Normalize-Version $LatestVersionRaw
+    if ([string]::IsNullOrWhiteSpace($LatestVersion)) {
+        Write-Warning "Could not parse latest release version from GitHub API response."
+    }
+    else {
+        Write-Host "Latest release version: $LatestVersionRaw"
+    }
+}
+catch {
+    Write-Warning "Could not fetch latest release version: $($_.Exception.Message)"
+}
+
+$InstalledExe = Join-Path $InstallDir "$Binary.exe"
+if (Test-Path $InstalledExe) {
+    $InstalledVersionRaw = ""
+    $InstalledVersion = ""
+
+    try {
+        $versionOutput = & $InstalledExe --version 2>$null | Out-String
+        $match = [regex]::Match($versionOutput, "version\s+([^\s]+)", [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+        if ($match.Success) {
+            $InstalledVersionRaw = $match.Groups[1].Value
+            $InstalledVersion = Normalize-Version $InstalledVersionRaw
+            Write-Host "Installed version: $InstalledVersionRaw"
+
+            if ($LatestVersion -and $InstalledVersion -and $InstalledVersion -eq $LatestVersion) {
+                Write-Host "$Binary $InstalledVersionRaw is already the latest version."
+                exit 0
+            }
+        }
+        else {
+            Write-Warning "Could not parse installed version from '$InstalledExe --version' output."
+        }
+    }
+    catch {
+        Write-Warning "Could not read installed version from ${InstalledExe}: $($_.Exception.Message)"
+    }
+}
 
 $File = "${Binary}_${os}_${arch}.zip"
 $Url = "https://github.com/$Repo/releases/latest/download/$File"

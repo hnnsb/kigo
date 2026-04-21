@@ -5,6 +5,10 @@ REPO="hnnsb/kigo"
 BINARY="kigo"
 INSTALL_DIR="/usr/local/bin"
 
+normalize_version() {
+  printf '%s' "${1#v}"
+}
+
 echo "Installing $BINARY..."
 
 OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
@@ -28,6 +32,41 @@ case "$OS" in
     exit 1
     ;;
 esac
+
+LATEST_TAG=""
+if LATEST_JSON="$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" 2>/dev/null)"; then
+  LATEST_TAG="$(printf '%s\n' "$LATEST_JSON" | grep -m1 '"tag_name"' | sed -E 's/.*"tag_name"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/')"
+  if [ -n "$LATEST_TAG" ]; then
+    echo "Latest release version: $LATEST_TAG"
+  else
+    echo "Warning: Could not parse latest release version from GitHub API response."
+  fi
+else
+  echo "Warning: Could not fetch latest release version from GitHub API."
+fi
+
+INSTALLED_PATH=""
+if command -v "$BINARY" >/dev/null 2>&1; then
+  INSTALLED_PATH="$(command -v "$BINARY")"
+elif [ -x "$INSTALL_DIR/$BINARY" ]; then
+  INSTALLED_PATH="$INSTALL_DIR/$BINARY"
+fi
+
+if [ -n "$INSTALLED_PATH" ]; then
+  INSTALLED_OUTPUT="$($INSTALLED_PATH --version 2>/dev/null || true)"
+  INSTALLED_TAG="$(printf '%s\n' "$INSTALLED_OUTPUT" | sed -nE 's/.*[Vv]ersion[[:space:]]+([^[:space:]]+).*/\1/p' | head -n1)"
+
+  if [ -n "$INSTALLED_TAG" ]; then
+    echo "Installed version: $INSTALLED_TAG"
+
+    if [ -n "$LATEST_TAG" ] && [ "$(normalize_version "$INSTALLED_TAG")" = "$(normalize_version "$LATEST_TAG")" ]; then
+      echo "$BINARY $INSTALLED_TAG is already the latest version."
+      exit 0
+    fi
+  else
+    echo "Warning: Could not parse installed version from '$INSTALLED_PATH --version' output."
+  fi
+fi
 
 FILE="${BINARY}_${OS}_${ARCH}.tar.gz"
 URL="https://github.com/${REPO}/releases/latest/download/${FILE}"
